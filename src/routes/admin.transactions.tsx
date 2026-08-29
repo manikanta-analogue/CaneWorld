@@ -70,7 +70,6 @@ function TransactionsPage() {
   const { access } = useStaffAccess();
   const [search, setSearch] = useState("");
   const [branch, setBranch] = useState("all");
-  const [method, setMethod] = useState("all");
 
   const branches = useMemo(() => {
     const map = new Map<string, string>();
@@ -84,30 +83,27 @@ function TransactionsPage() {
       !term ||
       row.customers?.name.toLowerCase().includes(term) ||
       row.customers?.mobile.includes(term) ||
-      row.reference_no.toLowerCase().includes(term);
+      row.reference_no.toLowerCase().includes(term) ||
+      row.transaction_items.some((item) => item.product_name.toLowerCase().includes(term));
     const matchesBranch = branch === "all" || row.branch_id === branch;
-    const matchesMethod = method === "all" || row.payment_method === method;
-    return matchesTerm && matchesBranch && matchesMethod;
+    return matchesTerm && matchesBranch;
   });
 
   const download = (format: "csv" | "xlsx") =>
     exportRows(
       `transactions-${range.from}-to-${range.to}`,
       filtered.map((row) => ({
-        Date: new Date(row.created_at).toLocaleString("en-IN"),
+        TransactionId: row.reference_no || row.id,
+        Name: row.customers?.name ?? "Walk-in",
         Branch: row.branches?.name ?? "Unknown",
-        Customer: row.customers?.name ?? "Walk-in",
-        Mobile: row.customers?.mobile ?? "",
-        Reference: row.reference_no,
-        Products: row.transaction_items
+        Product: row.transaction_items
           .map(
             (item) =>
               `${item.product_name} x${item.paid_quantity}${item.free_quantity ? ` +${item.free_quantity} free` : ""}`,
           )
           .join(", "),
-        Payment: row.payment_method,
-        Status: row.status,
         Amount: Number(row.total_amount),
+        Status: row.status,
       })),
       format,
     );
@@ -125,69 +121,58 @@ function TransactionsPage() {
 
       <Card className="rounded-2xl shadow-card">
         <CardContent className="space-y-4 p-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 className="pl-9"
-                placeholder="Search customer, mobile or reference"
+                placeholder="Search customer, mobile, product or reference"
                 value={search}
                 maxLength={60}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
             {access.isSuperAdmin && (
-            <Select value={branch} onValueChange={setBranch}>
-              <SelectTrigger>
-                <SelectValue placeholder="Branch" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All branches</SelectItem>
-                {branches.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={branch} onValueChange={setBranch}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All branches</SelectItem>
+                  {branches.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-            <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger>
-                <SelectValue placeholder="Payment method" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All methods</SelectItem>
-                <SelectItem value="cash">Cash</SelectItem>
-                <SelectItem value="razorpay">Razorpay</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Transaction ID</TableHead>
+                  <TableHead>Name</TableHead>
                   <TableHead>Branch</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Products</TableHead>
+                  <TableHead>Product</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Method</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell className="whitespace-nowrap text-xs">
-                      {new Date(row.created_at).toLocaleString("en-IN")}
+                    <TableCell className="whitespace-nowrap text-xs font-medium">
+                      {row.reference_no || row.id}
                     </TableCell>
-                    <TableCell className="text-xs">{row.branches?.name}</TableCell>
                     <TableCell className="text-xs">
-                      <span className="font-medium">{row.customers?.name}</span>
+                      <span className="font-medium">{row.customers?.name ?? "Walk-in"}</span>
                       <br />
-                      <span className="text-muted-foreground">{row.customers?.mobile}</span>
+                      <span className="text-muted-foreground">{row.customers?.mobile ?? "—"}</span>
                     </TableCell>
+                    <TableCell className="text-xs">{row.branches?.name ?? "Unknown"}</TableCell>
                     <TableCell className="text-xs">
                       {row.transaction_items
                         .filter((item) => item.paid_quantity + item.free_quantity > 0)
@@ -197,12 +182,11 @@ function TransactionsPage() {
                               item.free_quantity ? ` +${item.free_quantity} free` : ""
                             }`,
                         )
-                        .join(", ")}
+                        .join(", ") || "—"}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-right text-xs font-bold">
                       {formatMoney(Number(row.total_amount))}
                     </TableCell>
-                    <TableCell className="text-xs uppercase">{row.payment_method}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="text-[10px]">
                         {row.status}
@@ -212,7 +196,7 @@ function TransactionsPage() {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                       No transactions match your filters.
                     </TableCell>
                   </TableRow>

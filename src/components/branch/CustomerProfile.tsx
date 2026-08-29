@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, Gift, LogOut, Pencil, ReceiptText, User } from "lucide-react";
+import { ArrowRight, Camera, Gift, LogOut, Pencil, ReceiptText, User } from "lucide-react";
 import {
   getCustomerHistory,
   getCustomerProfile,
@@ -102,10 +102,12 @@ export function CustomerProfile({
 }) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [selectedProductForHistory, setSelectedProductForHistory] = useState<string | null>(null);
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("all");
   const [method, setMethod] = useState<(typeof METHODS)[number]["key"]>("all");
   const [bill, setBill] = useState<HistoryRow | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const [name, setName] = useState(customer.name);
   const [preview, setPreview] = useState<string | null>(null);
   const [dataUrl, setDataUrl] = useState<string | null>(null);
@@ -163,7 +165,14 @@ export function CustomerProfile({
   const freeGlasses = filtered.reduce((sum, row) => sum + row.free_glasses, 0);
 
   const byProduct = Object.fromEntries(progress.map((row) => [row.product_id, row]));
-  const loyaltyProducts = products.filter((product) => loyaltyOn(product));
+  const purchasedProductIds = new Set(
+    progress
+      .filter((row) => Number(row.purchased_count) > 0)
+      .map((row) => row.product_id),
+  );
+  const loyaltyProducts = products.filter(
+    (product) => loyaltyOn(product) && purchasedProductIds.has(product.id),
+  );
 
   if (view === "account") {
     const avatar = profile.data?.image_signed_url ?? null;
@@ -221,7 +230,7 @@ export function CustomerProfile({
             ))}
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {METHODS.map((item) => (
+            {/* {METHODS.map((item) => (
               <button
                 key={item.key}
                 onClick={() => setMethod(item.key)}
@@ -234,7 +243,7 @@ export function CustomerProfile({
               >
                 {item.label}
               </button>
-            ))}
+            ))} */}
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
@@ -285,11 +294,33 @@ export function CustomerProfile({
           <Button
             variant="outline"
             className="h-12 w-full rounded-2xl bg-card"
-            onClick={onSwitchCustomer}
+            onClick={() => setLogoutOpen(true)}
           >
-            <LogOut className="mr-2 h-4 w-4" /> Switch customer
+            <LogOut className="mr-2 h-4 w-4" /> Logout
           </Button>
         ) : null}
+
+        <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+          <DialogContent className="rounded-3xl">
+            <DialogHeader>
+              <DialogTitle>Are you sure you want to logout?</DialogTitle>
+              <DialogDescription>
+                You will need to sign in again with your mobile number and PIN to continue using your rewards.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:justify-between">
+              <Button variant="outline" className="h-11 rounded-full" onClick={() => setLogoutOpen(false)}>
+                Cancel
+              </Button>
+              <Button className="h-11 rounded-full" onClick={() => {
+                setLogoutOpen(false);
+                onSwitchCustomer?.();
+              }}>
+                Logout
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={Boolean(bill)} onOpenChange={(open) => !open && setBill(null)}>
           <DialogContent className="rounded-3xl">
@@ -414,7 +445,7 @@ export function CustomerProfile({
 
       {loyaltyProducts.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          No loyalty programme is active right now.
+          No purchased items yet. Rewards will appear here once the customer buys a drink.
         </p>
       ) : null}
 
@@ -424,8 +455,15 @@ export function CustomerProfile({
           const redeemed = byProduct[product.id]?.redeemed_count ?? 0;
           const reward = rewardQuantity(product);
           const ready = isEligible(done, product.loyalty_target, reward, true);
+          const productPurchases = (history.data ?? []).filter((row) =>
+            row.transaction_items.some((item) => item.product_name === product.name),
+          );
           return (
-            <article key={product.id} className="rounded-3xl border border-border bg-card p-4 shadow-card">
+            <article
+              key={product.id}
+              onClick={() => setSelectedProductForHistory(product.id)}
+              className="cursor-pointer rounded-3xl border border-border bg-card p-4 shadow-card transition hover:border-primary/40 hover:bg-accent/20"
+            >
               <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                 <img
                   src={productImage(product)}
@@ -436,13 +474,16 @@ export function CustomerProfile({
                   className={`h-12 w-12 shrink-0 rounded-xl object-cover ${categoryArt(product.category_name).tint}`}
                 />
                 <p className="truncate font-bold">{product.name}</p>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
-                    ready ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-                  }`}
-                >
-                  {done} / {product.loyalty_target}
-                </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                      ready ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    {done} / {product.loyalty_target}
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+                </div>
               </div>
               <ProgressBar value={(done / product.loyalty_target) * 100} className="mt-3 h-2" />
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -472,6 +513,49 @@ export function CustomerProfile({
           );
         })}
       </div>
+
+      <Dialog open={!!selectedProductForHistory} onOpenChange={(open) => !open && setSelectedProductForHistory(null)}>
+        <DialogContent className="rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {loyaltyProducts.find((p) => p.id === selectedProductForHistory)?.name || "Product purchases"}
+            </DialogTitle>
+            <DialogDescription>All branches where you purchased this product</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {(() => {
+              const product = loyaltyProducts.find((p) => p.id === selectedProductForHistory);
+              if (!product) return null;
+              const purchases = (history.data ?? []).filter((row) =>
+                row.transaction_items.some((item) => item.product_name === product.name),
+              );
+              return purchases.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No purchases found.</p>
+              ) : (
+                purchases.map((row) => (
+                  <div
+                    key={row.id}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-secondary/60 p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{row.branches?.name ?? "Branch"}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {new Date(row.created_at).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-sm font-bold">
+                      {row.transaction_items
+                        .filter((item) => item.product_name === product.name)
+                        .reduce((sum, item) => sum + item.paid_quantity + item.free_quantity, 0)}
+                      ×
+                    </span>
+                  </div>
+                ))
+              );
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -40,7 +40,27 @@ function SettingsPage() {
         .eq("id", 1)
         .maybeSingle();
       if (error) throw error;
-      return row;
+      if (row) return row;
+
+      const { data: created, error: insertError } = await supabase
+        .from("app_settings")
+        .upsert(
+          {
+            id: 1,
+            company_name: "CaneWorld",
+            logo_url: "",
+            currency: "₹",
+            razorpay_key: "",
+            business_mobile: "",
+            home_banner_url: "",
+            banner_urls: [],
+          },
+          { onConflict: "id" },
+        )
+        .select()
+        .single();
+      if (insertError) throw insertError;
+      return created;
     },
   });
   const [form, setForm] = useState({
@@ -54,14 +74,30 @@ function SettingsPage() {
   });
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [bannerPreviews, setBannerPreviews] = useState<string[]>([]);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const bannerInput = useRef<HTMLInputElement>(null);
+  const logoInput = useRef<HTMLInputElement>(null);
 
   const syncBannerPreviews = async (paths: string[]) => {
     const signed = await Promise.all(
       paths.map(async (path) => (path ? signProductImage(path) : null)),
     );
     setBannerPreviews(signed.filter((url): url is string => Boolean(url)));
+  };
+
+  const syncLogoPreview = async (path?: string | null) => {
+    if (!path) {
+      setLogoPreview(null);
+      return;
+    }
+    if (/^https?:\/\//i.test(path)) {
+      setLogoPreview(path);
+      return;
+    }
+    const signed = await signProductImage(path);
+    setLogoPreview(signed ?? path);
   };
 
   useEffect(() => {
@@ -85,6 +121,7 @@ function SettingsPage() {
       } else {
         setBannerPreview(null);
       }
+      void syncLogoPreview(data.logo_url);
       void syncBannerPreviews(nextBannerUrls);
     }
   }, [data]);
@@ -97,7 +134,11 @@ function SettingsPage() {
         Array.from(files).map((file) => uploadProductImage(file, "banners")),
       );
       const nextBannerUrls = Array.from(new Set([...form.banner_urls, ...uploadedPaths]));
-      setForm((current) => ({ ...current, banner_urls: nextBannerUrls }));
+      setForm((current) => ({
+        ...current,
+        banner_urls: nextBannerUrls,
+        home_banner_url: current.home_banner_url || uploadedPaths[0] || "",
+      }));
       await syncBannerPreviews(nextBannerUrls);
       if (uploadedPaths.length > 0) {
         toast.success(
@@ -116,7 +157,12 @@ function SettingsPage() {
 
   const removeBanner = async (path: string) => {
     const next = form.banner_urls.filter((item) => item !== path);
-    setForm((current) => ({ ...current, banner_urls: next }));
+    const fallback = next[0] ?? "";
+    setForm((current) => ({
+      ...current,
+      banner_urls: next,
+      home_banner_url: current.home_banner_url === path ? fallback : current.home_banner_url,
+    }));
     await syncBannerPreviews(next);
     if (path.trim()) {
       try {
@@ -127,24 +173,75 @@ function SettingsPage() {
     }
   };
 
-
-  const save = useMutation({
-    mutationFn: async () => {
-      const parsed = schema.parse(form);
-      const { error } = await supabase
-        .from("app_settings")
-        .update({
+  const persistSettings = async (nextForm: typeof form) => {
+    const parsed = schema.parse(nextForm);
+    const { data: savedRow, error } = await supabase
+      .from("app_settings")
+      .upsert(
+        {
+          id: 1,
           ...parsed,
           banner_urls: parsed.banner_urls,
           home_banner_url: parsed.home_banner_url,
           updated_at: new Date().toISOString(),
-        })
-        .eq("id", 1);
-      if (error) throw error;
-    },
-    onSuccess: () => {
+        },
+        { onConflict: "id" },
+      )
+      .select()
+      .single();
+    if (error) throw error;
+    queryClient.setQueryData(["admin-settings"], savedRow);
+    queryClient.setQueryData(["admin-brand"], {
+      company_name: savedRow?.company_name ?? nextForm.company_name,
+      logo_url: savedRow?.logo_url ?? nextForm.logo_url,
+    });
+    return savedRow;
+  };
+
+  const pickLogo = async (file: File | null | undefined) => {
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const path = await uploadProductImage(file, "branding");
+      const updated = { ...form, logo_url: path };
+      setForm(updated);
+      await syncLogoPreview(path);
+      await persistSettings(updated);
+      toast.success("Logo uploaded and saved");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setLogoUploading(false);
+      if (logoInput.current) logoInput.current.value = "";
+    }
+  };
+
+  const removeLogo = async () => {
+    if (!form.logo_url) return;
+    const updated = { ...form, logo_url: "" };
+    setForm(updated);
+    setLogoPreview(null);
+    try {
+      await removeProductImage(form.logo_url);
+      await persistSettings(updated);
+    } catch {
+      // ignore cleanup failures
+    }
+  };
+
+  const save = useMutation({
+    mutationFn: async () => persistSettings(form),
+    onSuccess: (savedRow) => {
       toast.success("Settings saved");
+      queryClient.setQueryData(["admin-settings"], savedRow);
+      queryClient.setQueryData(["admin-brand"], {
+        company_name: savedRow?.company_name ?? form.company_name,
+        logo_url: savedRow?.logo_url ?? form.logo_url,
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-brand"] });
       queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: ["public-settings"] });
     },
     onError: (error) =>
       toast.error(
@@ -156,50 +253,84 @@ function SettingsPage() {
 
   const fields: { key: keyof typeof form; label: string; placeholder?: string }[] = [
     { key: "company_name", label: "Company name" },
-    { key: "logo_url", label: "Logo URL", placeholder: "https://…" },
     { key: "currency", label: "Currency symbol" },
     { key: "razorpay_key", label: "Dummy Razorpay key" },
     { key: "business_mobile", label: "Business mobile" },
   ];
 
   return (
-    <div className="max-w-xl space-y-5">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Company details used across both portals</p>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight">Settings</h1>
+          <p className="text-sm text-muted-foreground">Branding, contact details and home page media</p>
+        </div>
+        <Button className="h-11" onClick={() => save.mutate()} disabled={save.isPending}>
+          {save.isPending ? "Saving…" : "Save changes"}
+        </Button>
       </div>
 
-      <Card className="rounded-2xl shadow-card">
-        <CardHeader>
-          <CardTitle className="text-base">Company profile</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {fields.map((field) => (
-            <div key={field.key} className="space-y-2">
-              <Label htmlFor={field.key}>{field.label}</Label>
-              <Input
-                id={field.key}
-                value={form[field.key]}
-                placeholder={field.placeholder}
-                maxLength={300}
-                onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
-              />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card className="rounded-2xl shadow-card">
+          <CardHeader>
+            <CardTitle className="text-base">Brand identity</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Brand logo</Label>
+              <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/40 p-3">
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Company logo preview" className="h-20 w-20 rounded-xl border border-border bg-background object-cover" />
+                ) : (
+                  <div className="grid h-20 w-20 place-items-center rounded-xl border border-dashed border-border bg-background text-xs font-bold text-muted-foreground">Logo</div>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={logoInput}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => pickLogo(e.target.files?.[0])}
+                  />
+                  <Button type="button" size="sm" variant="outline" disabled={logoUploading} onClick={() => logoInput.current?.click()}>
+                    <ImagePlus className="mr-1 h-4 w-4" />
+                    {logoUploading ? "Uploading…" : form.logo_url ? "Change logo" : "Upload logo"}
+                  </Button>
+                  {form.logo_url ? (
+                    <Button type="button" size="sm" variant="ghost" onClick={removeLogo}>
+                      <Trash2 className="mr-1 h-4 w-4" /> Remove
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
             </div>
-          ))}
-          {form.logo_url && (
-            <img
-              src={form.logo_url}
-              alt="Company logo preview"
-              className="h-16 w-16 rounded-xl border border-border object-contain"
-            />
-          )}
 
-          <div className="space-y-2 rounded-2xl border border-border p-3">
-            <Label>Home page banners</Label>
+            <div className="space-y-3">
+              {fields.map((field) => (
+                <div key={field.key} className="space-y-2">
+                  <Label htmlFor={field.key}>{field.label}</Label>
+                  <Input
+                    id={field.key}
+                    value={form[field.key]}
+                    placeholder={field.placeholder}
+                    maxLength={300}
+                    onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+                  />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-card">
+          <CardHeader>
+            <CardTitle className="text-base">Home page banners</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               {bannerPreviews.length > 0 ? (
                 bannerPreviews.map((preview, index) => (
-                  <div key={`${preview}-${index}`} className="overflow-hidden rounded-xl border border-border bg-muted">
+                  <div key={`${preview}-${index}`} className="overflow-hidden rounded-2xl border border-border bg-muted">
                     <img src={preview} alt={`Banner ${index + 1}`} className="h-28 w-full object-cover" />
                     <div className="flex justify-end p-2">
                       <Button
@@ -214,11 +345,12 @@ function SettingsPage() {
                   </div>
                 ))
               ) : (
-                <div className="col-span-full flex h-32 items-center justify-center rounded-xl bg-muted text-xs text-muted-foreground">
+                <div className="col-span-full flex h-32 items-center justify-center rounded-2xl bg-muted text-xs text-muted-foreground">
                   No banners uploaded yet
                 </div>
               )}
             </div>
+
             <div className="flex flex-wrap gap-2">
               <input
                 ref={bannerInput}
@@ -248,20 +380,17 @@ function SettingsPage() {
                     setBannerPreview(null);
                   }}
                 >
-                  <Trash2 className="mr-1 h-4 w-4" /> Remove primary banner
+                  <Trash2 className="mr-1 h-4 w-4" /> Remove main banner
                 </Button>
               ) : null}
-              <p className="w-full text-xs text-muted-foreground">
-                Upload one or more wide banners for the public home screen · JPG, PNG or WEBP · max 5MB
-              </p>
             </div>
-          </div>
 
-          <Button className="h-12 w-full" onClick={() => save.mutate()} disabled={save.isPending}>
-            {save.isPending ? "Saving…" : "Save settings"}
-          </Button>
-        </CardContent>
-      </Card>
+            <p className="text-xs text-muted-foreground">
+              Upload one or more wide banners for the public home screen · JPG, PNG or WEBP · up to 5MB each
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

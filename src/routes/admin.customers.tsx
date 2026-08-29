@@ -54,6 +54,8 @@ type CustomerSummary = {
   mobile: string;
   transactionCount: number;
   totalSpent: number;
+  paidItems: number;
+  freeItems: number;
   lastVisit: string | null;
   visitedBranches: { id: string; name: string; totalSpent: number; count: number }[];
   transactions: Array<{
@@ -118,6 +120,8 @@ function CustomersPage() {
         mobile: customer.mobile,
         transactionCount: 0,
         totalSpent: 0,
+        paidItems: 0,
+        freeItems: 0,
         lastVisit: null,
         visitedBranches: [],
         transactions: [],
@@ -129,9 +133,19 @@ function CustomersPage() {
           (item) =>
             `${item.product_name} x${item.paid_quantity}${item.free_quantity ? ` + ${item.free_quantity} free` : ""}`,
         );
+      const paidItemsThisTxn = (row.transaction_items ?? []).reduce(
+        (sum, item) => sum + Number(item.paid_quantity ?? 0),
+        0,
+      );
+      const freeItemsThisTxn = (row.transaction_items ?? []).reduce(
+        (sum, item) => sum + Number(item.free_quantity ?? 0),
+        0,
+      );
 
       current.transactionCount += 1;
       current.totalSpent += Number(row.total_amount ?? 0);
+      current.paidItems += paidItemsThisTxn;
+      current.freeItems += freeItemsThisTxn;
       current.lastVisit = !current.lastVisit || new Date(row.created_at) > new Date(current.lastVisit)
         ? row.created_at
         : current.lastVisit;
@@ -198,6 +212,8 @@ function CustomersPage() {
         Mobile: customer.mobile,
         Branches: customer.visitedBranches.map((branchItem) => branchItem.name).join(" | "),
         Transactions: customer.transactionCount,
+        PaidItems: customer.paidItems,
+        FreeItems: customer.freeItems,
         TotalSpent: Number(customer.totalSpent),
         LastVisit: customer.lastVisit ? new Date(customer.lastVisit).toLocaleString("en-IN") : "—",
       })),
@@ -258,6 +274,8 @@ function CustomersPage() {
                   <TableHead>Customer</TableHead>
                   {access.isSuperAdmin && <TableHead>Branch visits</TableHead>}
                   <TableHead>Transactions</TableHead>
+                  <TableHead className="text-right">Paid items</TableHead>
+                  <TableHead className="text-right">Free items</TableHead>
                   <TableHead className="text-right">Total spent</TableHead>
                   <TableHead>Last visit</TableHead>
                 </TableRow>
@@ -308,6 +326,8 @@ function CustomersPage() {
                       </TableCell>
                     )}
                     <TableCell>{customer.transactionCount}</TableCell>
+                    <TableCell className="text-right font-medium">{customer.paidItems}</TableCell>
+                    <TableCell className="text-right font-medium">{customer.freeItems}</TableCell>
                     <TableCell className="text-right font-semibold">{formatMoney(customer.totalSpent)}</TableCell>
                     <TableCell>{customer.lastVisit ? new Date(customer.lastVisit).toLocaleString("en-IN") : "—"}</TableCell>
                   </TableRow>
@@ -315,7 +335,7 @@ function CustomersPage() {
 
                 {filteredCustomers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
                       No customers match your filters.
                     </TableCell>
                   </TableRow>

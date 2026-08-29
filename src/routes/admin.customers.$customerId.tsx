@@ -1,12 +1,22 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ShoppingBag, UserRound } from "lucide-react";
+import { ArrowLeft, Download, Search, ShoppingBag, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/loyalty";
+import { exportRows } from "@/lib/export";
+import { DateRangeFilter, useDateRange } from "@/components/DateRangeFilter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/admin/customers/$customerId")({
   component: CustomerDetailPage,
@@ -94,13 +104,23 @@ async function loadCustomerDetail(customerId: string) {
 
 function CustomerDetailPage() {
   const { customerId } = Route.useParams();
-  const { data } = useQuery({
+  const { range, setRange, fromIso, toIso } = useDateRange("30d");
+  const [search, setSearch] = useState("");
+  const [branch, setBranch] = useState("all");
+  const { data, isLoading } = useQuery({
     queryKey: ["customer-detail", customerId],
     queryFn: () => loadCustomerDetail(customerId),
   });
 
   const customer = data?.customer;
   const txns = data?.txns ?? [];
+  const branchOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    txns.forEach((txn) => {
+      if (txn.branch_id && txn.branches?.name) map.set(txn.branch_id, txn.branches.name);
+    });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [txns]);
 
   const byCategory = useMemo(() => {
     const map = new Map<string, { category: string; total: number; qty: number; amount: number; items: string[] }>();
@@ -128,9 +148,23 @@ function CustomerDetailPage() {
     return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
   }, [txns]);
 
+  const filteredTxns = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return txns.filter((txn) => {
+      const matchesSearch =
+        !q ||
+        txn.reference_no.toLowerCase().includes(q) ||
+        (txn.transaction_items ?? []).some((item) => item.product_name.toLowerCase().includes(q));
+      const matchesBranch = branch === "all" || txn.branch_id === branch;
+      const time = new Date(txn.created_at).getTime();
+      const matchesRange = time >= new Date(fromIso).getTime() && time <= new Date(toIso).getTime();
+      return matchesSearch && matchesBranch && matchesRange;
+    });
+  }, [txns, search, branch, fromIso, toIso]);
+
   const branchGroups = useMemo(() => {
     const map = new Map<string, { branchName: string; total: number; txns: CustomerTxn[] }>();
-    for (const txn of txns) {
+    for (const txn of filteredTxns) {
       const branchName = txn.branches?.name ?? "Unknown";
       const existing = map.get(branchName) ?? { branchName, total: 0, txns: [] };
       existing.total += Number(txn.total_amount ?? 0);
@@ -138,7 +172,52 @@ function CustomerDetailPage() {
       map.set(branchName, existing);
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [txns]);
+  }, [filteredTxns]);
+
+  const handleDownloadCustomer = () => {
+    if (!customer) return;
+
+    const rows = filteredTxns.map((txn) => {
+      const paidItems = (txn.transaction_items ?? []).reduce(
+        (sum, item) => sum + Number(item.paid_quantity ?? 0),
+        0,
+      );
+      const freeItems = (txn.transaction_items ?? []).reduce(
+        (sum, item) => sum + Number(item.free_quantity ?? 0),
+        0,
+      );
+
+      return {
+        Date: new Date(txn.created_at).toLocaleString("en-IN"),
+        Branch: txn.branches?.name ?? "Unknown",
+        Reference: txn.reference_no,
+        Payment: txn.payment_method,
+        Total: Number(txn.total_amount ?? 0),
+        PaidItems: paidItems,
+        FreeItems: freeItems,
+        Items: (txn.transaction_items ?? [])
+          .map((item) => `${item.product_name} x${Number(item.paid_quantity ?? 0) + Number(item.free_quantity ?? 0)}`)
+          .join(" | "),
+      };
+    });
+
+    exportRows(`customer-${customer.name}-${customer.mobile}`.replace(/\s+/g, "-").toLowerCase(), rows, "csv");
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Button variant="outline" asChild>
+          <Link to="/admin/customers">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to customers
+          </Link>
+        </Button>
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">Loading...</CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!customer) {
     return (
@@ -157,11 +236,47 @@ function CustomerDetailPage() {
 
   return (
     <div className="space-y-5">
-      <Button variant="outline" asChild>
-        <Link to="/admin/customers">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to customers
-        </Link>
-      </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="outline" asChild>
+          <Link to="/admin/customers">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to customers
+          </Link>
+        </Button>
+
+        <Button variant="outline" onClick={handleDownloadCustomer}>
+          <Download className="mr-2 h-4 w-4" /> Download customer
+        </Button>
+      </div>
+
+      <Card className="rounded-2xl shadow-card">
+        <CardContent className="space-y-3 p-4">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_220px_220px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search by txn ref or item"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <DateRangeFilter range={range} onChange={setRange} />
+            <Select value={branch} onValueChange={setBranch}>
+              <SelectTrigger>
+                <SelectValue placeholder="All branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All branches</SelectItem>
+                {branchOptions.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="rounded-2xl shadow-card">
         <CardContent className="space-y-5 p-4">
@@ -212,7 +327,10 @@ function CustomerDetailPage() {
             {branchGroups.map((group) => (
               <div key={group.branchName} className="rounded-2xl border border-border p-3">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <span className="font-semibold">{group.branchName}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{group.branchName}</span>
+                    <Badge variant="secondary">{group.txns.length} visits</Badge>
+                  </div>
                   <span className="text-sm font-semibold">{formatMoney(group.total)}</span>
                 </div>
 

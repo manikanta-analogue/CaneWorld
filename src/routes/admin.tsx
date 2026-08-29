@@ -1,12 +1,13 @@
 import { Link, Outlet, createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import {
   BarChart3,
   Code2,
+  KeyRound,
   ListTree,
   LayoutDashboard,
   LogOut,
-  QrCode,
   Receipt,
   Settings,
   Store,
@@ -28,6 +29,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { signProductImage } from "@/lib/product-images";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -48,13 +50,14 @@ const items = [
   { title: "Customers", url: "/admin/customers", icon: Users },
   { title: "Transactions", url: "/admin/transactions", icon: Receipt },
   { title: "Reports", url: "/admin/reports", icon: BarChart3 },
-  { title: "QR Codes", url: "/admin/qr", icon: QrCode },
   { title: "API Tester", url: "/admin/api-tester", icon: Code2 },
   { title: "Settings", url: "/admin/settings", icon: Settings },
+  { title: "Change password", url: "/admin/change-password", icon: KeyRound, superAdminOnly: true },
+  { title: "Branch Settings", url: "/admin/branch-settings", icon: Store, branchOnly: true },
 ];
 
 
-const branchAllowed = new Set(["/admin", "/admin/menu", "/admin/customers", "/admin/transactions", "/admin/reports"]);
+const branchAllowed = new Set(["/admin", "/admin/menu", "/admin/customers", "/admin/transactions", "/admin/reports", "/admin/branch-settings"]);
 
 function AdminLayout() {
   const { session, loading } = useStaffSession();
@@ -63,6 +66,49 @@ function AdminLayout() {
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const customerRoutesAllowed = pathname === "/admin/customers" || pathname.startsWith("/admin/customers/");
+  const { data: brandData } = useQuery({
+    queryKey: ["admin-brand"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("company_name, logo_url")
+        .eq("id", 1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const [brandLogo, setBrandLogo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!brandData?.logo_url) {
+      setBrandLogo(null);
+      return;
+    }
+
+    if (/^https?:\/\//i.test(brandData.logo_url)) {
+      setBrandLogo(brandData.logo_url);
+      return;
+    }
+
+    let isMounted = true;
+    void signProductImage(brandData.logo_url).then((url) => {
+      if (isMounted) {
+        setBrandLogo(url ?? null);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [brandData?.logo_url]);
+
+  const brandName = brandData?.company_name || "CaneWorld";
+  const brandInitials = brandName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "CW";
 
   if (loading) {
     return (
@@ -93,10 +139,10 @@ function AdminLayout() {
   }
 
   const visibleItems = access.isSuperAdmin
-    ? items
-    : items.filter((item) => branchAllowed.has(item.url));
+    ? items.filter((item) => !(item as any).branchOnly)
+    : items.filter((item) => branchAllowed.has(item.url) && !(item as any).superAdminOnly);
 
-  if (!access.isSuperAdmin && !branchAllowed.has(pathname) && !customerRoutesAllowed) {
+  if (!access.isSuperAdmin && !branchAllowed.has(pathname) && !customerRoutesAllowed && pathname !== "/admin/branch-settings") {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Button onClick={() => navigate({ to: "/admin" })}>Back to dashboard</Button>
@@ -110,13 +156,17 @@ function AdminLayout() {
         <Sidebar collapsible="icon">
           <SidebarContent>
             <div className="flex items-center gap-2 px-4 py-5">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
-                <span className="text-sm font-extrabold">SF</span>
-              </div>
+              {brandLogo ? (
+                <img src={brandLogo} alt={`${brandName} logo`} className="h-9 w-9 shrink-0 rounded-xl border border-border bg-background object-cover" />
+              ) : (
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
+                  <span className="text-xs font-extrabold">{brandInitials}</span>
+                </div>
+              )}
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold">CaneWorld</p>
+                <p className="truncate text-sm font-bold">{brandName}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {access.isSuperAdmin ? "Super Admin" : (access.branchName ?? "Branch login")}
+                  {access.isSuperAdmin ? "Super Admin" : (access.branchName ?? "Branch Admin")}
                 </p>
               </div>
             </div>

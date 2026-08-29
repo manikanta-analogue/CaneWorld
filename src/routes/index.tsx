@@ -67,18 +67,7 @@ function Index() {
 
   return (
     <main className="mx-auto min-h-screen max-w-md px-5 py-10">
-      {banners.length > 0 ? (
-        <div className="mb-6 space-y-3">
-          {banners.map((banner, index) => (
-            <img
-              key={`${banner}-${index}`}
-              src={banner}
-              alt={`${settings.data?.company_name ?? "CaneWorld"} offers banner ${index + 1}`}
-              className="h-44 w-full rounded-3xl object-cover shadow-card"
-            />
-          ))}
-        </div>
-      ) : null}
+   
       <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Fresh · Loyal · Fast</p>
       <h1 className="mt-2 text-3xl font-extrabold leading-tight tracking-tight">
         Sugarcane juice loyalty, one glass at a time

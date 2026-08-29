@@ -156,25 +156,15 @@ export function CustomerAuth({
 
   return (
     <div className="mx-auto w-full max-w-md px-4 py-10 sm:px-6">
-      <div className="relative overflow-hidden rounded-4xl bg-primary p-6 text-primary-foreground shadow-lift">
-        {branchImage ? (
-          <>
-            <img
-              src={branchImage}
-              alt={branchName}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-cane-700/90 via-cane-700/40 to-transparent" />
-          </>
-        ) : null}
-        <div className="relative">
-          {branchImage ? null : (
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary-foreground/15">
-              <GlassWater className="h-6 w-6" aria-hidden />
-            </div>
-          )}
-          <h1 className="mt-4 text-2xl font-extrabold leading-tight">{branchName}</h1>
-          <p className="mt-1 text-sm opacity-90">{subtitle}</p>
+      <div className="rounded-4xl bg-primary p-6 text-primary-foreground shadow-lift">
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary-foreground/15">
+            <GlassWater className="h-6 w-6" aria-hidden />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold leading-tight">{branchName}</h1>
+            <p className="mt-1 text-sm opacity-90">{subtitle}</p>
+          </div>
         </div>
       </div>
 
@@ -226,7 +216,9 @@ export function CustomerAuth({
                   {showLoginPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">Signing in as {mobile}</p>
+              <p className="text-xs text-muted-foreground">
+                Signing in as {mobile.length >= 4 ? `•••• ${mobile.slice(-4)}` : mobile}
+              </p>
             </div>
             <Button type="submit" className="h-14 w-full rounded-full text-base" disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}
@@ -239,14 +231,14 @@ export function CustomerAuth({
             >
               Forgot PIN? Reset with OTP
             </Button>
-            <Button
+            {/* <Button
               type="button"
               variant="ghost"
               className="h-11 w-full rounded-full text-muted-foreground"
               onClick={() => setStep("mobile")}
             >
               Change number
-            </Button>
+            </Button> */}
           </form>
         )}
 
@@ -270,14 +262,14 @@ export function CustomerAuth({
             <Button type="submit" className="h-14 w-full rounded-full text-base">
               Verify & continue
             </Button>
-            <Button
+            {/* <Button
               type="button"
               variant="ghost"
               className="h-12 w-full rounded-full"
               onClick={() => setStep("mobile")}
             >
               Change number
-            </Button>
+            </Button> */}
           </form>
         )}
 

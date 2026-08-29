@@ -43,7 +43,7 @@ async function loadCatalogue() {
     supabase
       .from("products")
       .select(
-        "id, name, description, image_url, volume_ml, price, loyalty_target, loyalty_enabled, reward_quantity, sort_order, is_active, category_id",
+        "id, name, description, image_url, volume_ml, price, loyalty_target, loyalty_enabled, reward_quantity, sort_order, is_active, category_id, branch_ids",
       )
       .order("sort_order"),
   ]);

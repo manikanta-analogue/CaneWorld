@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImageOff, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +39,7 @@ export type MenuProduct = {
   sort_order: number;
   is_active: boolean;
   category_id: string | null;
+  branch_ids: string[] | null;
 };
 
 type Draft = {
@@ -52,6 +53,7 @@ type Draft = {
   sort_order: string;
   is_active: boolean;
   category_id: string;
+  branch_ids: string[];
 };
 
 const blankDraft = (categoryId: string, sortOrder: number): Draft => ({
@@ -65,6 +67,7 @@ const blankDraft = (categoryId: string, sortOrder: number): Draft => ({
   sort_order: String(sortOrder),
   is_active: true,
   category_id: categoryId,
+  branch_ids: [],
 });
 
 const toDraft = (v: MenuProduct): Draft => ({
@@ -78,6 +81,7 @@ const toDraft = (v: MenuProduct): Draft => ({
   sort_order: String(v.sort_order ?? 0),
   is_active: v.is_active,
   category_id: v.category_id ?? "",
+  branch_ids: Array.isArray(v.branch_ids) ? v.branch_ids : [],
 });
 
 /** Shared validation for both create and edit paths. */
@@ -109,6 +113,7 @@ function validate(draft: Draft) {
     sort_order: Number.isFinite(order) ? Math.round(order) : 0,
     is_active: draft.is_active,
     category_id: draft.category_id,
+    branch_ids: draft.branch_ids,
   };
 }
 
@@ -136,13 +141,16 @@ export function ProductDialog({
 }: Props) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft>(blankDraft(defaultCategoryId, nextSortOrder));
+  const [allBranchesMode, setAllBranchesMode] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setDraft(product ? toDraft(product) : blankDraft(defaultCategoryId, nextSortOrder));
+    const nextDraft = product ? toDraft(product) : blankDraft(defaultCategoryId, nextSortOrder);
+    setDraft(nextDraft);
+    setAllBranchesMode(!product || !Array.isArray(product.branch_ids) || product.branch_ids.length === 0);
     setPendingFile(null);
     setPendingPreview(null);
   }, [open, product, defaultCategoryId, nextSortOrder]);
@@ -159,6 +167,29 @@ export function ProductDialog({
   };
 
   const patch = (next: Partial<Draft>) => setDraft((current) => ({ ...current, ...next }));
+
+  const { data: branches = [] } = useQuery({
+    queryKey: ["branches-lite"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("branches")
+        .select("id, name, status")
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string; status: "active" | "disabled" }[];
+    },
+    enabled: open,
+  });
+
+  const toggleBranch = (branchId: string) => {
+    setAllBranchesMode(false);
+    setDraft((current) => {
+      const next = current.branch_ids.includes(branchId)
+        ? current.branch_ids.filter((id) => id !== branchId)
+        : [...current.branch_ids, branchId];
+      return { ...current, branch_ids: next };
+    });
+  };
 
   const save = useMutation({
     mutationFn: async () => {
@@ -224,6 +255,7 @@ export function ProductDialog({
 
   const buyCount =
     Math.max(0, Number(draft.loyalty_target || 0) - Number(draft.reward_quantity || 1)) || 0;
+  const allBranchesSelected = allBranchesMode && branches.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -426,6 +458,63 @@ export function ProductDialog({
               Loyalty is off for this juice.
             </p>
           )}
+
+          <div className="space-y-3 rounded-xl border border-border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Branch availability</p>
+                <p className="text-xs text-muted-foreground">
+                  {allBranchesSelected
+                    ? "Available to all branches"
+                    : `${draft.branch_ids.length} branch${draft.branch_ids.length > 1 ? "es" : ""} selected`}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={allBranchesSelected ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setAllBranchesMode((current) => {
+                    const next = !current;
+                    if (next) {
+                      setDraft((currentDraft) => ({ ...currentDraft, branch_ids: [] }));
+                    }
+                    return next;
+                  });
+                }}
+              >
+                {allBranchesSelected ? "All branches on" : "All branches"}
+              </Button>
+            </div>
+
+            {!allBranchesSelected && (
+              <div className="space-y-2">
+                {branches.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No branches available yet.</p>
+                ) : (
+                  branches.map((branch) => (
+                    <label
+                      key={branch.id}
+                      className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{branch.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {branch.status === "active" ? "Active" : "Inactive"}
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={draft.branch_ids.includes(branch.id)}
+                        onChange={() => toggleBranch(branch.id)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
             <span className="text-sm font-medium">

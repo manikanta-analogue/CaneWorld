@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -52,11 +52,30 @@ export const Route = createFileRoute("/b/$token")({
 
 type Tab = "home" | "cart" | "rewards" | "account";
 
+const customerSessionKey = (token: string) => `branch-customer:${token}`;
+const tabSessionKey = (token: string) => `branch-tab:${token}`;
+
 function BranchPortal() {
   const { token } = Route.useParams();
   const queryClient = useQueryClient();
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [tab, setTab] = useState<Tab>("home");
+  const [customer, setCustomer] = useState<Customer | null>(() => {
+    try {
+      const saved = window.sessionStorage.getItem(customerSessionKey(token));
+      return saved ? (JSON.parse(saved) as Customer) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [tab, setTab] = useState<Tab>(() => {
+    try {
+      const saved = window.sessionStorage.getItem(tabSessionKey(token));
+      return saved === "home" || saved === "cart" || saved === "rewards" || saved === "account"
+        ? (saved as Tab)
+        : "home";
+    } catch {
+      return "home";
+    }
+  });
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [rewardOpen, setRewardOpen] = useState(false);
   const [pending, setPending] = useState<{ cart: CartLine[]; redeem: string[] } | null>(null);
@@ -64,7 +83,12 @@ function BranchPortal() {
   const [busy, setBusy] = useState(false);
 
   const branchQuery = useQuery({ queryKey: ["branch", token], queryFn: () => fetchBranchByToken(token) });
-  const productsQuery = useQuery({ queryKey: ["products"], queryFn: fetchSellableProducts });
+  const branch = branchQuery.data;
+  const productsQuery = useQuery({
+    queryKey: ["products", branch?.id],
+    queryFn: () => fetchSellableProducts(branch?.id),
+    enabled: Boolean(branch),
+  });
   const settingsQuery = useQuery({ queryKey: ["settings"], queryFn: fetchSettings });
   const progressQuery = useQuery({
     queryKey: ["progress", customer?.id],
@@ -73,7 +97,6 @@ function BranchPortal() {
   });
 
   const currency = (settingsQuery.data as { currency?: string } | null)?.currency ?? "₹";
-  const branch = branchQuery.data;
   const products = useMemo(
     () => (productsQuery.data ?? []).filter((product) => product.is_active),
     [productsQuery.data],
@@ -89,11 +112,33 @@ function BranchPortal() {
   const setQty = (productId: string, next: number) =>
     setQuantities((current) => ({ ...current, [productId]: Math.max(0, Math.min(50, next)) }));
 
+  useEffect(() => {
+    if (!customer) {
+      window.sessionStorage.removeItem(customerSessionKey(token));
+      return;
+    }
+    window.sessionStorage.setItem(customerSessionKey(token), JSON.stringify(customer));
+  }, [customer, token]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem(tabSessionKey(token), tab);
+  }, [tab, token]);
+
   const resetSession = () => {
     setCustomer(null);
     setPending(null);
     setQuantities({});
     setTab("home");
+    window.sessionStorage.removeItem(customerSessionKey(token));
+    window.sessionStorage.removeItem(tabSessionKey(token));
+  };
+
+  const finishCheckout = () => {
+    setReceipt(null);
+    setPending(null);
+    setQuantities({});
+    setTab("home");
+    window.sessionStorage.setItem(tabSessionKey(token), "home");
   };
 
   if (branchQuery.isLoading) {
@@ -116,10 +161,7 @@ function BranchPortal() {
       <SuccessScreen
         receipt={receipt}
         currency={currency}
-        onDone={() => {
-          setReceipt(null);
-          resetSession();
-        }}
+        onDone={finishCheckout}
       />
     );
   }
@@ -206,9 +248,9 @@ function BranchPortal() {
               <p className="truncate text-xs opacity-80">{branch.name}</p>
             </div>
           </div>
-          <span className="shrink-0 rounded-full bg-primary-foreground/15 px-3 py-1 text-xs font-semibold">
+          {/* <span className="shrink-0 rounded-full bg-primary-foreground/15 px-3 py-1 text-xs font-semibold">
             {customer.mobile}
-          </span>
+          </span> */}
         </header>
 
         {pending ? (

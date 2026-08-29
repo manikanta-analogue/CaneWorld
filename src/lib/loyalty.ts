@@ -26,6 +26,7 @@ export type Product = {
   sort_order: number;
   is_active: boolean;
   category_id?: string | null;
+  branch_ids?: string[] | null;
   category_name?: string | null;
   category_active?: boolean;
 };
@@ -125,13 +126,13 @@ export function makeReference(method: "cash" | "razorpay") {
 /* Branch-portal reads and writes go through server functions so the public
    database never needs anonymous access to customer or sales data. */
 
-export async function fetchProducts(): Promise<Product[]> {
-  return (await listPublicProducts()) as unknown as Product[];
+export async function fetchProducts(branchId?: string): Promise<Product[]> {
+  return (await listPublicProducts({ data: branchId ? { branchId } : {} })) as unknown as Product[];
 }
 
 /** Only items customers can actually buy right now. */
-export async function fetchSellableProducts(): Promise<Product[]> {
-  const products = await fetchProducts();
+export async function fetchSellableProducts(branchId?: string): Promise<Product[]> {
+  const products = await fetchProducts(branchId);
   return products.filter((product) => product.is_active && product.category_active !== false);
 }
 

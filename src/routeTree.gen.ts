@@ -20,8 +20,10 @@ import { Route as ScanRouteImport } from './routes/scan'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminApiTesterRouteImport } from './routes/admin.api-tester'
+import { Route as AdminBranchSettingsRouteImport } from './routes/admin.branch-settings'
 import { Route as AdminBranchesRouteImport } from './routes/admin.branches'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminChangePasswordRouteImport } from './routes/admin.change-password'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminMenuRouteImport } from './routes/admin.menu'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
@@ -87,6 +89,11 @@ const AdminApiTesterRoute = AdminApiTesterRouteImport.update({
   path: '/api-tester',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminBranchSettingsRoute = AdminBranchSettingsRouteImport.update({
+  id: '/branch-settings',
+  path: '/branch-settings',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminBranchesRoute = AdminBranchesRouteImport.update({
   id: '/branches',
   path: '/branches',
@@ -95,6 +102,11 @@ const AdminBranchesRoute = AdminBranchesRouteImport.update({
 const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminChangePasswordRoute = AdminChangePasswordRouteImport.update({
+  id: '/change-password',
+  path: '/change-password',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminCustomersRoute = AdminCustomersRouteImport.update({
@@ -155,8 +167,10 @@ export interface FileRoutesByFullPath {
   '/scan': typeof ScanRoute
   '/terms': typeof TermsRoute
   '/admin/api-tester': typeof AdminApiTesterRoute
+  '/admin/branch-settings': typeof AdminBranchSettingsRoute
   '/admin/branches': typeof AdminBranchesRoute
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/change-password': typeof AdminChangePasswordRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/menu': typeof AdminMenuRoute
   '/admin/products': typeof AdminProductsRoute
@@ -178,8 +192,10 @@ export interface FileRoutesByTo {
   '/scan': typeof ScanRoute
   '/terms': typeof TermsRoute
   '/admin/api-tester': typeof AdminApiTesterRoute
+  '/admin/branch-settings': typeof AdminBranchSettingsRoute
   '/admin/branches': typeof AdminBranchesRoute
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/change-password': typeof AdminChangePasswordRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/menu': typeof AdminMenuRoute
   '/admin/products': typeof AdminProductsRoute
@@ -203,8 +219,10 @@ export interface FileRoutesById {
   '/scan': typeof ScanRoute
   '/terms': typeof TermsRoute
   '/admin/api-tester': typeof AdminApiTesterRoute
+  '/admin/branch-settings': typeof AdminBranchSettingsRoute
   '/admin/branches': typeof AdminBranchesRoute
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/change-password': typeof AdminChangePasswordRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/menu': typeof AdminMenuRoute
   '/admin/products': typeof AdminProductsRoute
@@ -229,8 +247,10 @@ export interface FileRouteTypes {
     | '/scan'
     | '/terms'
     | '/admin/api-tester'
+    | '/admin/branch-settings'
     | '/admin/branches'
     | '/admin/categories'
+    | '/admin/change-password'
     | '/admin/customers'
     | '/admin/menu'
     | '/admin/products'
@@ -252,8 +272,10 @@ export interface FileRouteTypes {
     | '/scan'
     | '/terms'
     | '/admin/api-tester'
+    | '/admin/branch-settings'
     | '/admin/branches'
     | '/admin/categories'
+    | '/admin/change-password'
     | '/admin/customers'
     | '/admin/menu'
     | '/admin/products'
@@ -276,8 +298,10 @@ export interface FileRouteTypes {
     | '/scan'
     | '/terms'
     | '/admin/api-tester'
+    | '/admin/branch-settings'
     | '/admin/branches'
     | '/admin/categories'
+    | '/admin/change-password'
     | '/admin/customers'
     | '/admin/menu'
     | '/admin/products'
@@ -382,6 +406,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminApiTesterRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/branch-settings': {
+      id: '/admin/branch-settings'
+      path: '/branch-settings'
+      fullPath: '/admin/branch-settings'
+      preLoaderRoute: typeof AdminBranchSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/branches': {
       id: '/admin/branches'
       path: '/branches'
@@ -394,6 +425,13 @@ declare module '@tanstack/react-router' {
       path: '/categories'
       fullPath: '/admin/categories'
       preLoaderRoute: typeof AdminCategoriesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/change-password': {
+      id: '/admin/change-password'
+      path: '/change-password'
+      fullPath: '/admin/change-password'
+      preLoaderRoute: typeof AdminChangePasswordRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/customers': {
@@ -476,8 +514,10 @@ const AdminCustomersRouteWithChildren = AdminCustomersRoute._addFileChildren(
 
 interface AdminRouteChildren {
   AdminApiTesterRoute: typeof AdminApiTesterRoute
+  AdminBranchSettingsRoute: typeof AdminBranchSettingsRoute
   AdminBranchesRoute: typeof AdminBranchesRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
+  AdminChangePasswordRoute: typeof AdminChangePasswordRoute
   AdminCustomersRoute: typeof AdminCustomersRouteWithChildren
   AdminMenuRoute: typeof AdminMenuRoute
   AdminProductsRoute: typeof AdminProductsRoute
@@ -490,8 +530,10 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminApiTesterRoute: AdminApiTesterRoute,
+  AdminBranchSettingsRoute: AdminBranchSettingsRoute,
   AdminBranchesRoute: AdminBranchesRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
+  AdminChangePasswordRoute: AdminChangePasswordRoute,
   AdminCustomersRoute: AdminCustomersRouteWithChildren,
   AdminMenuRoute: AdminMenuRoute,
   AdminProductsRoute: AdminProductsRoute,

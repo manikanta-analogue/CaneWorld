@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Gift, IndianRupee, Receipt, Store, TrendingUp, Users } from "lucide-react";
 import {
@@ -90,22 +90,28 @@ function StatCard({
   label,
   value,
   icon: Icon,
+  to,
 }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
+  to?: string;
 }) {
+  const content = (
+    <CardContent className="flex items-center gap-3 p-4">
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-xs text-muted-foreground">{label}</p>
+        <p className="truncate text-lg font-bold">{value}</p>
+      </div>
+    </CardContent>
+  );
+
   return (
-    <Card className="rounded-2xl shadow-card">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-xs text-muted-foreground">{label}</p>
-          <p className="truncate text-lg font-bold">{value}</p>
-        </div>
-      </CardContent>
+    <Card className={to ? "cursor-pointer rounded-2xl shadow-card transition hover:border-primary/40 hover:bg-accent/30" : "rounded-2xl shadow-card"}>
+      {to ? <Link to={to} className="block">{content}</Link> : content}
     </Card>
   );
 }
@@ -175,12 +181,16 @@ function Dashboard() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            <StatCard label="Total Branches" value={String(data.totalBranches)} icon={Store} />
-            <StatCard label="Sales in range" value={formatMoney(data.sales)} icon={IndianRupee} />
-            <StatCard label="Transactions" value={String(data.transactions)} icon={Receipt} />
-            <StatCard label="Free glasses" value={String(data.freeGlasses)} icon={Gift} />
-            <StatCard label="Total Customers" value={String(data.totalCustomers)} icon={Users} />
-            <StatCard label="Paid glasses" value={String(data.paidGlasses)} icon={TrendingUp} />
+            {access.isSuperAdmin && (
+              <StatCard label="Total Branches" value={String(data.totalBranches)} icon={Store} to="/admin/branches" />
+            )}
+            <StatCard label="Sales in range" value={formatMoney(data.sales)} icon={IndianRupee} to="/admin/transactions" />
+            <StatCard label="Transactions" value={String(data.transactions)} icon={Receipt} to="/admin/transactions" />
+            <StatCard label="Free glasses" value={String(data.freeGlasses)} icon={Gift} to="/admin/reports" />
+            {access.isSuperAdmin && (
+              <StatCard label="Total Customers" value={String(data.totalCustomers)} icon={Users} to="/admin/customers" />
+            )}
+            <StatCard label="Paid glasses" value={String(data.paidGlasses)} icon={TrendingUp} to="/admin/reports" />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">

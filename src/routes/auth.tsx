@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Eye, EyeOff, Leaf, Store, UserCog } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { signProductImage } from "@/lib/product-images";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,34 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [brandLogo, setBrandLogo] = useState<string | null>(null);
+  const [brandName, setBrandName] = useState("CaneWorld");
+
+  useEffect(() => {
+    let isMounted = true;
+    void (async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("company_name, logo_url")
+        .eq("id", 1)
+        .maybeSingle();
+      if (!isMounted) return;
+      if (data?.company_name) setBrandName(data.company_name);
+      if (!data?.logo_url) {
+        setBrandLogo(null);
+        return;
+      }
+      if (/^https?:\/\//i.test(data.logo_url)) {
+        setBrandLogo(data.logo_url);
+        return;
+      }
+      const signed = await signProductImage(data.logo_url);
+      setBrandLogo(signed ?? null);
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -73,10 +102,14 @@ function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-secondary/40 px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lift">
-            <Leaf className="h-6 w-6" />
+          <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-2xl bg-primary text-primary-foreground shadow-lift">
+            {brandLogo ? (
+              <img src={brandLogo} alt={`${brandName} logo`} className="h-full w-full object-cover bg-background" />
+            ) : (
+              <Leaf className="h-6 w-6" />
+            )}
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight">CaneWorld</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight">{brandName}</h1>
           <p className="text-sm text-muted-foreground">Admin & branch management portal</p>
         </div>
 

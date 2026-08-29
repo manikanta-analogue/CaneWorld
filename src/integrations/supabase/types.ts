@@ -193,6 +193,7 @@ export type Database = {
       }
       products: {
         Row: {
+          branch_ids: string[] | null
           category_id: string | null
           created_at: string
           description: string
@@ -209,6 +210,7 @@ export type Database = {
           volume_ml: number
         }
         Insert: {
+          branch_ids?: string[] | null
           category_id?: string | null
           created_at?: string
           description?: string
@@ -225,6 +227,7 @@ export type Database = {
           volume_ml?: number
         }
         Update: {
+          branch_ids?: string[] | null
           category_id?: string | null
           created_at?: string
           description?: string

@@ -60,46 +60,58 @@ export const listPublicBranches = createServerFn({ method: "GET" }).handler(asyn
   return data ?? [];
 });
 
-export const listPublicProducts = createServerFn({ method: "GET" }).handler(async () => {
-  const db = await admin();
-  const { data, error } = await db
-    .from("products")
-    .select(
-      "id, name, description, image_url, volume_ml, price, loyalty_target, loyalty_enabled, reward_quantity, sort_order, is_active, category_id, categories(name, is_active, sort_order)",
-    )
-    .order("sort_order", { ascending: true });
-  if (error) throw error;
-  const rows = (data ?? []) as (Record<string, unknown> & {
-    image_url: string;
-    sort_order: number;
-    categories: { name: string; is_active: boolean; sort_order: number } | null;
-  })[];
+export const listPublicProducts = createServerFn({ method: "GET" })
+  .inputValidator((input?: { branchId?: string }) => ({
+    branchId: input?.branchId && input.branchId.trim() ? z.string().uuid().parse(input.branchId) : null,
+  }))
+  .handler(async ({ data }) => {
+    const db = await admin();
+    const { data: rowsData, error } = await db
+      .from("products")
+      .select(
+        "id, name, description, image_url, volume_ml, price, loyalty_target, loyalty_enabled, reward_quantity, sort_order, is_active, category_id, branch_ids, categories(name, is_active, sort_order)",
+      )
+      .order("sort_order", { ascending: true });
+    if (error) throw error;
 
-  // Product images live in a private bucket; hand the POS short-lived signed links.
-  const paths = Array.from(new Set(rows.map((row) => row.image_url).filter(Boolean)));
-  const signed = new Map<string, string>();
-  for (const path of paths) {
-    const { data: url } = await db.storage.from("product-images").createSignedUrl(path, 60 * 60 * 12);
-    if (url?.signedUrl) signed.set(path, url.signedUrl);
-  }
+    const rows = (rowsData ?? []) as (Record<string, unknown> & {
+      image_url: string;
+      sort_order: number;
+      branch_ids: string[] | null;
+      categories: { name: string; is_active: boolean; sort_order: number } | null;
+    })[];
 
-  return rows
-    .map((row) => {
-      const { categories, ...product } = row;
-      return {
-        ...product,
-        image_signed_url: signed.get(row.image_url) ?? null,
-        category_name: categories?.name ?? null,
-        category_active: categories?.is_active ?? true,
-        category_sort_order: categories?.sort_order ?? 0,
-      };
-    })
-    .sort(
-      (a, b) =>
-        a.category_sort_order - b.category_sort_order ||
-        a.sort_order - b.sort_order,
-    );
-});
+    const filtered = rows.filter((row) => {
+      if (!data?.branchId) return true;
+      const allowed = row.branch_ids;
+      if (!Array.isArray(allowed) || allowed.length === 0) return true;
+      return allowed.includes(data.branchId);
+    });
+
+    const paths = Array.from(new Set(filtered.map((row) => row.image_url).filter(Boolean)));
+    const signed = new Map<string, string>();
+    for (const path of paths) {
+      const { data: url } = await db.storage.from("product-images").createSignedUrl(path, 60 * 60 * 12);
+      if (url?.signedUrl) signed.set(path, url.signedUrl);
+    }
+
+    return filtered
+      .map((row) => {
+        const { categories, ...product } = row;
+        return {
+          ...product,
+          image_signed_url: signed.get(row.image_url) ?? null,
+          category_name: categories?.name ?? null,
+          category_active: categories?.is_active ?? true,
+          category_sort_order: categories?.sort_order ?? 0,
+        };
+      })
+      .sort(
+        (a, b) =>
+          a.category_sort_order - b.category_sort_order ||
+          a.sort_order - b.sort_order,
+      );
+  });
 
 export const getPublicSettings = createServerFn({ method: "GET" }).handler(async () => {
   const db = await admin();
