@@ -1,0 +1,1 @@
+ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS image_url text NOT NULL DEFAULT '';

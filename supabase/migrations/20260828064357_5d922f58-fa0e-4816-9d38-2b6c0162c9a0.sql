@@ -1,0 +1,1 @@
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS pin_hash text NOT NULL DEFAULT '';

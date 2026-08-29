@@ -1,0 +1,1 @@
+ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS map_location text NOT NULL DEFAULT '';

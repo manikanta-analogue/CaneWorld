@@ -1,0 +1,1 @@
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS home_banner_url text NOT NULL DEFAULT '';
