@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowRight, Camera, Gift, LogOut, Pencil, ReceiptText, User } from "lucide-react";
+import { Camera, Gift, LogOut, Pencil, ReceiptText, User } from "lucide-react";
 import {
   getCustomerHistory,
   getCustomerProfile,
@@ -102,7 +102,6 @@ export function CustomerProfile({
 }) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [selectedProductForHistory, setSelectedProductForHistory] = useState<string | null>(null);
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("all");
   const [method, setMethod] = useState<(typeof METHODS)[number]["key"]>("all");
   const [bill, setBill] = useState<HistoryRow | null>(null);
@@ -455,15 +454,8 @@ export function CustomerProfile({
           const redeemed = byProduct[product.id]?.redeemed_count ?? 0;
           const reward = rewardQuantity(product);
           const ready = isEligible(done, product.loyalty_target, reward, true);
-          const productPurchases = (history.data ?? []).filter((row) =>
-            row.transaction_items.some((item) => item.product_name === product.name),
-          );
           return (
-            <article
-              key={product.id}
-              onClick={() => setSelectedProductForHistory(product.id)}
-              className="cursor-pointer rounded-3xl border border-border bg-card p-4 shadow-card transition hover:border-primary/40 hover:bg-accent/20"
-            >
+            <article key={product.id} className="rounded-3xl border border-border bg-card p-4 shadow-card">
               <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                 <img
                   src={productImage(product)}
@@ -474,16 +466,13 @@ export function CustomerProfile({
                   className={`h-12 w-12 shrink-0 rounded-xl object-cover ${categoryArt(product.category_name).tint}`}
                 />
                 <p className="truncate font-bold">{product.name}</p>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                      ready ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-                    }`}
-                  >
-                    {done} / {product.loyalty_target}
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden />
-                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+                    ready ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {done} / {product.loyalty_target}
+                </span>
               </div>
               <ProgressBar value={(done / product.loyalty_target) * 100} className="mt-3 h-2" />
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -513,49 +502,6 @@ export function CustomerProfile({
           );
         })}
       </div>
-
-      <Dialog open={!!selectedProductForHistory} onOpenChange={(open) => !open && setSelectedProductForHistory(null)}>
-        <DialogContent className="rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>
-              {loyaltyProducts.find((p) => p.id === selectedProductForHistory)?.name || "Product purchases"}
-            </DialogTitle>
-            <DialogDescription>All branches where you purchased this product</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            {(() => {
-              const product = loyaltyProducts.find((p) => p.id === selectedProductForHistory);
-              if (!product) return null;
-              const purchases = (history.data ?? []).filter((row) =>
-                row.transaction_items.some((item) => item.product_name === product.name),
-              );
-              return purchases.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No purchases found.</p>
-              ) : (
-                purchases.map((row) => (
-                  <div
-                    key={row.id}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-secondary/60 p-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{row.branches?.name ?? "Branch"}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {new Date(row.created_at).toLocaleString("en-IN")}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-sm font-bold">
-                      {row.transaction_items
-                        .filter((item) => item.product_name === product.name)
-                        .reduce((sum, item) => sum + item.paid_quantity + item.free_quantity, 0)}
-                      ×
-                    </span>
-                  </div>
-                ))
-              );
-            })()}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

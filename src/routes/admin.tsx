@@ -52,12 +52,11 @@ const items = [
   { title: "Reports", url: "/admin/reports", icon: BarChart3 },
   { title: "API Tester", url: "/admin/api-tester", icon: Code2 },
   { title: "Settings", url: "/admin/settings", icon: Settings },
-  { title: "Change password", url: "/admin/change-password", icon: KeyRound, superAdminOnly: true },
-  { title: "Branch Settings", url: "/admin/branch-settings", icon: Store, branchOnly: true },
+  { title: "Change password", url: "/admin/change-password", icon: KeyRound },
 ];
 
 
-const branchAllowed = new Set(["/admin", "/admin/menu", "/admin/customers", "/admin/transactions", "/admin/reports", "/admin/branch-settings"]);
+const branchAllowed = new Set(["/admin", "/admin/menu", "/admin/customers", "/admin/transactions", "/admin/reports", "/admin/change-password"]);
 
 function AdminLayout() {
   const { session, loading } = useStaffSession();
@@ -108,7 +107,7 @@ function AdminLayout() {
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("") || "CW";
+    .join("") || "SF";
 
   if (loading) {
     return (
@@ -139,10 +138,10 @@ function AdminLayout() {
   }
 
   const visibleItems = access.isSuperAdmin
-    ? items.filter((item) => !(item as any).branchOnly)
-    : items.filter((item) => branchAllowed.has(item.url) && !(item as any).superAdminOnly);
+    ? items
+    : items.filter((item) => branchAllowed.has(item.url));
 
-  if (!access.isSuperAdmin && !branchAllowed.has(pathname) && !customerRoutesAllowed && pathname !== "/admin/branch-settings") {
+  if (!access.isSuperAdmin && !branchAllowed.has(pathname) && !customerRoutesAllowed) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Button onClick={() => navigate({ to: "/admin" })}>Back to dashboard</Button>
@@ -166,7 +165,7 @@ function AdminLayout() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold">{brandName}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {access.isSuperAdmin ? "Super Admin" : (access.branchName ?? "Branch Admin")}
+                  {access.isSuperAdmin ? "Super Admin" : (access.branchName ?? "Branch login")}
                 </p>
               </div>
             </div>

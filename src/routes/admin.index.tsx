@@ -181,15 +181,11 @@ function Dashboard() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            {access.isSuperAdmin && (
-              <StatCard label="Total Branches" value={String(data.totalBranches)} icon={Store} to="/admin/branches" />
-            )}
+            <StatCard label="Total Branches" value={String(data.totalBranches)} icon={Store} to="/admin/branches" />
             <StatCard label="Sales in range" value={formatMoney(data.sales)} icon={IndianRupee} to="/admin/transactions" />
             <StatCard label="Transactions" value={String(data.transactions)} icon={Receipt} to="/admin/transactions" />
             <StatCard label="Free glasses" value={String(data.freeGlasses)} icon={Gift} to="/admin/reports" />
-            {access.isSuperAdmin && (
-              <StatCard label="Total Customers" value={String(data.totalCustomers)} icon={Users} to="/admin/customers" />
-            )}
+            <StatCard label="Total Customers" value={String(data.totalCustomers)} icon={Users} to="/admin/customers" />
             <StatCard label="Paid glasses" value={String(data.paidGlasses)} icon={TrendingUp} to="/admin/reports" />
           </div>
 
