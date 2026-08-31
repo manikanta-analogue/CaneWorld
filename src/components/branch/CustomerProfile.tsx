@@ -515,7 +515,7 @@ export function CustomerProfile({
                   <Gift className="h-3.5 w-3.5 text-primary" aria-hidden />
                   {ready
                     ? `Free ${product.name} ready to redeem`
-                    : `Buy ${Math.max(0, product.loyalty_target - reward - done)} more & get ${reward} FREE`}
+                    : `Buy ${Math.max(0, product.loyalty_target - done)} more & get ${reward} FREE`}
                   {redeemed > 0 ? ` · ${redeemed} redeemed` : ""}
                 </p>
                 <span className="font-semibold text-foreground">{purchases.length} txn</span>

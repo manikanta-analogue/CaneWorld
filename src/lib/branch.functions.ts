@@ -473,10 +473,8 @@ export const submitCheckout = createServerFn({ method: "POST" })
       const rewardQty = Math.max(1, Number(product.reward_quantity ?? 1));
       const loyaltyOn = product.loyalty_enabled !== false && target > 1;
       const purchased = progressByProduct.get(product.id)?.purchased_count ?? 0;
-      // A free glass is granted only when the server-side counter actually earned it.
-      const earned = loyaltyOn && purchased >= target - rewardQty;
-      const free =
-        data.redeemProductIds.includes(product.id) && earned ? Math.min(rewardQty, line.qty) : 0;
+      const bundleFree = loyaltyOn ? Math.floor((purchased + line.qty) / target) * rewardQty - Math.floor(purchased / target) * rewardQty : 0;
+      const free = data.redeemProductIds.includes(product.id) ? Math.min(bundleFree, line.qty) : 0;
       const paid = Math.max(0, line.qty - free);
       return {
         product_id: product.id,

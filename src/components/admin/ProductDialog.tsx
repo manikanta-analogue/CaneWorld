@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -253,8 +254,7 @@ export function ProductDialog({
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const buyCount =
-    Math.max(0, Number(draft.loyalty_target || 0) - Number(draft.reward_quantity || 1)) || 0;
+  const buyCount = Number(draft.loyalty_target || 0);
   const allBranchesSelected = allBranchesMode && branches.length > 0;
 
   return (
@@ -410,11 +410,12 @@ export function ProductDialog({
 
           <div className="space-y-2">
             <Label htmlFor="pd-desc">Description</Label>
-            <Input
+            <Textarea
               id="pd-desc"
               placeholder="Optional"
               value={draft.description}
               onChange={(e) => patch({ description: e.target.value })}
+              rows={4}
             />
           </div>
 
@@ -449,9 +450,9 @@ export function ProductDialog({
                   />
                 </div>
               </div>
-              {/* <p className="rounded-lg bg-accent px-3 py-2 text-xs text-accent-foreground">
+              <p className="rounded-lg bg-accent px-3 py-2 text-xs text-accent-foreground">
                 Buy {buyCount || "?"} · get {draft.reward_quantity || 1} free
-              </p> */}
+              </p>
             </>
           ) : (
             <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">

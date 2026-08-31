@@ -55,8 +55,25 @@ const items = [
   { title: "Change password", url: "/admin/change-password", icon: KeyRound },
 ];
 
+const branchItems = [
+  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
+  { title: "Menu", url: "/admin/menu", icon: ListTree },
+  { title: "Customers", url: "/admin/customers", icon: Users },
+  { title: "Transactions", url: "/admin/transactions", icon: Receipt },
+  { title: "Reports", url: "/admin/reports", icon: BarChart3 },
+  { title: "Branch settings", url: "/admin/branch-settings", icon: Settings },
+  { title: "Change password", url: "/admin/change-password", icon: KeyRound },
+];
 
-const branchAllowed = new Set(["/admin", "/admin/menu", "/admin/customers", "/admin/transactions", "/admin/reports", "/admin/change-password"]);
+const branchAllowed = new Set([
+  "/admin",
+  "/admin/menu",
+  "/admin/customers",
+  "/admin/transactions",
+  "/admin/reports",
+  "/admin/branch-settings",
+  "/admin/change-password",
+]);
 
 function AdminLayout() {
   const { session, loading } = useStaffSession();
@@ -137,9 +154,7 @@ function AdminLayout() {
     );
   }
 
-  const visibleItems = access.isSuperAdmin
-    ? items
-    : items.filter((item) => branchAllowed.has(item.url));
+  const visibleItems = access.isSuperAdmin ? items : branchItems;
 
   if (!access.isSuperAdmin && !branchAllowed.has(pathname) && !customerRoutesAllowed) {
     return (

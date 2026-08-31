@@ -110,6 +110,7 @@ async function loadReports(fromIso: string, toIso: string, branchId: string) {
         month: sumAfter(startOfMonth),
         rangeTotal: branchTxns.reduce((sum, row) => sum + Number(row.total_amount), 0),
         transactions: branchTxns.length,
+        paidGlasses: branchTxns.reduce((sum, row) => sum + Number(row.paid_glasses), 0),
         freeGlasses: branchTxns.reduce((sum, row) => sum + Number(row.free_glasses), 0),
       };
     })
@@ -271,6 +272,7 @@ function ReportsPage() {
                 <TableHead className="text-right">This month</TableHead>
                 <TableHead className="text-right">Range total</TableHead>
                 <TableHead className="text-right">Transactions</TableHead>
+                <TableHead className="text-right">Paid glasses</TableHead>
                 <TableHead className="text-right">Free glasses</TableHead>
               </TableRow>
             </TableHeader>
@@ -283,6 +285,7 @@ function ReportsPage() {
                   <TableCell className="text-right">{formatMoney(branch.month)}</TableCell>
                   <TableCell className="text-right font-bold">{formatMoney(branch.rangeTotal)}</TableCell>
                   <TableCell className="text-right">{branch.transactions}</TableCell>
+                  <TableCell className="text-right">{branch.paidGlasses ?? 0}</TableCell>
                   <TableCell className="text-right">{branch.freeGlasses}</TableCell>
                 </TableRow>
               ))}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
 import { toast } from "sonner";
 import { Eye, EyeOff, Leaf, Store, UserCog } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 
+const authSearchSchema = z.object({
+  role: z.enum(["admin", "branch"]).optional().default("admin"),
+});
+
 export const Route = createFileRoute("/auth")({
+  validateSearch: (search) => authSearchSchema.parse(search),
   head: () => ({
     meta: [
       { title: "Staff Sign In — CaneWorld" },
@@ -26,8 +32,9 @@ type Role = "admin" | "branch";
 
 function AuthPage() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const [mode, setMode] = useState<Mode>("login");
-  const [role, setRole] = useState<Role>("branch");
+  const [role, setRole] = useState<Role>(search.role === "branch" ? "branch" : "admin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -127,6 +134,7 @@ function AuthPage() {
                   type="button"
                   onClick={() => {
                     setRole(option.value);
+                    navigate({ to: "/auth", search: { role: option.value }, replace: true });
                     setMode("login");
                   }}
                   className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors ${
@@ -196,9 +204,16 @@ function AuthPage() {
               </Button>
             </form>
 
-            <div className="mt-4 flex flex-col gap-1 text-center text-sm">
+            <div className="mt-4 flex flex-col gap-2 text-center text-sm">
               {mode === "login" && (
                 <>
+                  <p className="text-xs text-muted-foreground">For customer sign-in, open the user panel.</p>
+                  <Link
+                    to="/scan"
+                    className="inline-flex items-center justify-center rounded-full border border-border bg-background px-3 py-2 font-medium text-foreground transition hover:bg-accent"
+                  >
+                    Login as user
+                  </Link>
                   <button
                     className="text-primary hover:underline"
                     onClick={() => setMode("forgot")}

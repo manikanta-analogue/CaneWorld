@@ -17,7 +17,14 @@ export function CartScreen({
   onBrowse: () => void;
 }) {
   const lines = cart.filter((line) => line.qty > 0);
-  const { total, paidGlasses } = buildOrder(cart, []);
+  const redeemIds = lines
+    .filter((line) => {
+      const target = Number(line.product.loyalty_target ?? 1);
+      const reward = Number(line.product.reward_quantity ?? 1);
+      return line.product.loyalty_enabled !== false && target > 1 && Math.floor(line.qty / target) * reward > 0;
+    })
+    .map((line) => line.product.id);
+  const { total, paidGlasses, freeGlasses, items } = buildOrder(cart, redeemIds);
 
   if (lines.length === 0) {
     return (
@@ -39,7 +46,12 @@ export function CartScreen({
       <h1 className="text-xl font-extrabold">Your cart</h1>
 
       <div className="space-y-3">
-        {lines.map((line) => (
+        {lines.map((line) => {
+          const lineItem = items.find((item) => item.product.id === line.product.id);
+          const freeQty = lineItem?.free_quantity ?? 0;
+          const containerTotal = lineItem ? lineItem.line_total : Number(line.product.price) * line.qty;
+
+          return (
           <div
             key={line.product.id}
             className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-3xl border border-border bg-card p-3 shadow-card"
@@ -56,8 +68,11 @@ export function CartScreen({
               <p className="truncate font-bold">{line.product.name}</p>
               <p className="text-xs text-muted-foreground">{line.product.volume_ml} ml</p>
               <p className="text-sm font-extrabold text-primary">
-                {formatMoney(Number(line.product.price) * line.qty, currency)}
+                {formatMoney(containerTotal, currency)}
               </p>
+              {freeQty > 0 ? (
+                <p className="text-[11px] font-semibold text-primary">{freeQty} free from loyalty</p>
+              ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary p-1">
               <Button
@@ -80,20 +95,25 @@ export function CartScreen({
               </Button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="rounded-3xl border border-border bg-card p-4 shadow-card">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Glasses</span>
+          <span>Paid glasses</span>
           <span>{paidGlasses}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>Free glasses</span>
+          <span className="font-semibold text-primary">{freeGlasses}</span>
         </div>
         <div className="mt-2 flex items-center justify-between border-t border-border pt-3">
           <span className="text-sm text-muted-foreground">Total</span>
           <span className="text-2xl font-extrabold">{formatMoney(total, currency)}</span>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Loyalty rewards are applied at checkout when you are eligible.
+          Loyalty bundles are deducted from the total when a free reward is redeemed.
         </p>
       </div>
 

@@ -3,17 +3,19 @@ import QRCode from "qrcode";
 import { Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-/** Stable public URL of the live app for QR codes. */
-const PUBLIC_BASE = "https://sugarcane-branch-buddy.com";
-
-/** Base used inside printed/downloaded QR codes. */
+/** Base used inside printed/downloaded QR codes. Prefer the deployed origin, with a local/dev override when needed. */
 export function publicBase() {
-  if (typeof window === "undefined") return PUBLIC_BASE;
-  const host = window.location.hostname;
-  const isLocalPreview =
-    host === "localhost" ||
-    host === "127.0.0.1";
-  return isLocalPreview ? PUBLIC_BASE : window.location.origin;
+  const configured = (import.meta.env.VITE_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
+
+  if (configured) {
+    return configured;
+  }
+
+  if (typeof window === "undefined") {
+    return "http://localhost:8080";
+  }
+
+  return window.location.origin;
 }
 
 export function branchUrl(token: string) {

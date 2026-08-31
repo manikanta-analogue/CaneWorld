@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { MapPin, QrCode, ShieldCheck } from "lucide-react";
 import { getPublicSettings, listPublicBranches } from "@/lib/branch.functions";
@@ -41,11 +41,8 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
-  loader: async ({ context }) => {
-    await Promise.all([
-      context.queryClient.ensureQueryData(branchesQuery),
-      context.queryClient.ensureQueryData(settingsQuery),
-    ]);
+  loader: () => {
+    throw redirect({ to: "/auth", search: { role: "admin" } });
   },
   errorComponent: ({ error }) => (
     <div role="alert" className="p-6 text-sm text-muted-foreground">
@@ -83,11 +80,11 @@ function Index() {
             <QrCode className="mr-2 h-5 w-5" /> Scan branch QR
           </Link>
         </Button>
-        {/* <Button asChild variant="outline" className="h-14 w-full text-base">
-          <Link to="/auth">
-            <ShieldCheck className="mr-2 h-5 w-5" /> Admin &amp; branch login
+        <Button asChild variant="outline" className="h-14 w-full text-base">
+          <Link to="/auth" search={{ role: "admin" }}>
+            <ShieldCheck className="mr-2 h-5 w-5" /> Login as admin
           </Link>
-        </Button> */}
+        </Button>
         <p className="text-center text-xs text-muted-foreground">
           Branch staff sign in with the email and password created by the admin.
         </p>

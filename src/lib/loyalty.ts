@@ -64,15 +64,22 @@ export const formatMoney = (amount: number, currency = "₹") =>
 
 export const DUMMY_OTP = "123456";
 
-/** A product is reward-eligible once the customer has paid for target - reward glasses. */
+/** One bundle is earned when the customer reaches the full buy target, e.g. buy 5 get 1 free. */
 export function isEligible(progress: number, target: number, reward = 1, enabled = true) {
   const rewardQty = Math.max(1, reward);
-  return enabled && target > 1 && progress >= target - rewardQty;
+  return enabled && target > 1 && rewardQty > 0 && progress >= target;
 }
 
 export const rewardQuantity = (product: Product) => Math.max(1, Number(product.reward_quantity ?? 1));
 export const loyaltyOn = (product: Product) =>
   product.loyalty_enabled !== false && Number(product.loyalty_target) > 1;
+
+export function rewardBundlesForQty(qty: number, product: Product) {
+  const target = Number(product.loyalty_target ?? 1);
+  const rewardQty = rewardQuantity(product);
+  if (!loyaltyOn(product) || qty <= 0 || target <= 1) return 0;
+  return Math.floor(qty / target) * rewardQty;
+}
 
 export function eligibleRewards(
   cart: CartLine[],
@@ -80,14 +87,11 @@ export function eligibleRewards(
 ): EligibleReward[] {
   return cart
     .filter((line) => line.qty > 0)
-    .filter((line) =>
-      isEligible(
-        progressByProduct[line.product.id]?.purchased_count ?? 0,
-        line.product.loyalty_target,
-        rewardQuantity(line.product),
-        loyaltyOn(line.product),
-      ),
-    )
+    .filter((line) => {
+      const prior = progressByProduct[line.product.id]?.purchased_count ?? 0;
+      const totalProgress = prior + line.qty;
+      return rewardBundlesForQty(totalProgress, line.product) > rewardBundlesForQty(prior, line.product);
+    })
     .map((line) => ({
       product: line.product,
       progress: progressByProduct[line.product.id]?.purchased_count ?? 0,
@@ -99,9 +103,8 @@ export function buildOrder(cart: CartLine[], redeemProductIds: string[]) {
   const items = cart
     .filter((line) => line.qty > 0)
     .map((line) => {
-      const free = redeemProductIds.includes(line.product.id)
-        ? Math.min(rewardQuantity(line.product), line.qty)
-        : 0;
+      const bundleFree = rewardBundlesForQty(line.qty, line.product);
+      const free = redeemProductIds.includes(line.product.id) ? Math.min(bundleFree, line.qty) : 0;
       const paid = Math.max(0, line.qty - free);
       return {
         product: line.product,

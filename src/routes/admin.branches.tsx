@@ -8,7 +8,6 @@ import {
   Eye,
   EyeOff,
   ImagePlus,
-  KeyRound,
   Pencil,
   Plus,
   RefreshCw,
@@ -366,7 +365,9 @@ function BranchesPage() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-extrabold tracking-tight">Branches</h1>
-          <p className="text-sm text-muted-foreground">Every branch gets one unique QR code</p>
+          <p className="text-sm text-muted-foreground">
+            Every branch gets one unique QR code
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           <Button
@@ -565,35 +566,35 @@ function BranchesPage() {
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-3 shadow-card">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="relative w-full md:max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search branches..."
-              className="pl-9"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(["all", "active", "disabled"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setStatusFilter(option)}
-                className={[
-                  "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                  statusFilter === option
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-muted-foreground hover:text-foreground",
-                ].join(" ")}
-              >
-                {option === "all" ? "All" : option === "active" ? "Active" : "Inactive"}
-              </button>
-            ))}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="relative w-full md:max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search branches..."
+                className="pl-9"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(["all", "active", "disabled"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setStatusFilter(option)}
+                  className={[
+                    "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                    statusFilter === option
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground",
+                  ].join(" ")}
+                >
+                  {option === "all" ? "All" : option === "active" ? "Active" : "Inactive"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filteredBranches.map((branch) => (
@@ -636,20 +637,6 @@ function BranchesPage() {
                 <p className="mt-1 text-xs text-muted-foreground">
                   Staff sign in at /auth with this email and password.
                 </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-2"
-                  onClick={() => {
-                    setLoginBranch(branch);
-                    setLoginForm({ email: "", password: "" });
-                  }}
-                >
-                  <KeyRound className="mr-1 h-4 w-4" />
-                  {branchUsers.some((u) => u.branchId === branch.id)
-                    ? "Change password"
-                    : "Create login"}
-                </Button>
               </div>
 
               <div className="flex flex-wrap gap-2">

@@ -116,7 +116,7 @@ export function PosScreen({
         return {
           product,
           done,
-          remaining: Math.max(0, product.loyalty_target - rewardQuantity(product) - done),
+          remaining: Math.max(0, product.loyalty_target - done),
         };
       })
       .filter((row) => row.done > 0);
@@ -227,7 +227,7 @@ export function PosScreen({
               <p className="truncate text-xs text-muted-foreground">
                 {nextReward.remaining === 0
                   ? `Free ${nextReward.product.name} ready to redeem`
-                  : `Buy ${nextReward.remaining} more & get ${rewardQuantity(nextReward.product)} FREE`}
+                  : `Buy ${nextReward.product.loyalty_target - nextReward.done} more & get ${rewardQuantity(nextReward.product)} FREE`}
               </p>
             </div>
             <span className="shrink-0 rounded-full bg-accent px-3 py-1 text-xs font-bold text-accent-foreground">
@@ -342,7 +342,7 @@ export function PosScreen({
                       {hasLoyalty ? (
                         <p className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-accent-foreground">
                           <Sparkles className="h-3 w-3" aria-hidden />
-                          Buy {product.loyalty_target - reward} get {reward} free
+                          Buy {product.loyalty_target} get {reward} free
                         </p>
                       ) : null}
                     </div>
