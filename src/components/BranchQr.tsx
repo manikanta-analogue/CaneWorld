@@ -3,19 +3,17 @@ import QRCode from "qrcode";
 import { Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-/** Stable public URL of the live app — always reachable without a Lovable login. */
+/** Stable public URL of the live app for QR codes. */
 const PUBLIC_BASE = "https://sugarcane-branch-buddy.com";
 
-/** Base used inside printed/downloaded QR codes: never an editor-preview origin. */
+/** Base used inside printed/downloaded QR codes. */
 export function publicBase() {
   if (typeof window === "undefined") return PUBLIC_BASE;
   const host = window.location.hostname;
-  const isEditorPreview =
-    host.includes("id-preview--") ||
-    host.endsWith("lovableproject.com") ||
+  const isLocalPreview =
     host === "localhost" ||
     host === "127.0.0.1";
-  return isEditorPreview ? PUBLIC_BASE : window.location.origin;
+  return isLocalPreview ? PUBLIC_BASE : window.location.origin;
 }
 
 export function branchUrl(token: string) {

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, Gift, LogOut, Pencil, ReceiptText, User } from "lucide-react";
+import { ArrowRight, Camera, Gift, LogOut, Pencil, ReceiptText, User } from "lucide-react";
 import {
   getCustomerHistory,
   getCustomerProfile,
@@ -105,6 +105,7 @@ export function CustomerProfile({
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("all");
   const [method, setMethod] = useState<(typeof METHODS)[number]["key"]>("all");
   const [bill, setBill] = useState<HistoryRow | null>(null);
+  const [selectedProductForHistory, setSelectedProductForHistory] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [name, setName] = useState(customer.name);
@@ -435,6 +436,13 @@ export function CustomerProfile({
     );
   }
 
+  const selectedProduct = loyaltyProducts.find((product) => product.id === selectedProductForHistory) ?? null;
+  const selectedProductPurchases = selectedProduct
+    ? (history.data ?? []).filter((row) =>
+        row.transaction_items.some((item) => item.product_name === selectedProduct.name),
+      )
+    : [];
+
   return (
     <div className="space-y-4 px-4 pb-32 pt-4 sm:px-6">
       <div>
@@ -454,8 +462,16 @@ export function CustomerProfile({
           const redeemed = byProduct[product.id]?.redeemed_count ?? 0;
           const reward = rewardQuantity(product);
           const ready = isEligible(done, product.loyalty_target, reward, true);
+          const purchases = (history.data ?? []).filter((row) =>
+            row.transaction_items.some((item) => item.product_name === product.name),
+          );
+
           return (
-            <article key={product.id} className="rounded-3xl border border-border bg-card p-4 shadow-card">
+            <article
+              key={product.id}
+              onClick={() => setSelectedProductForHistory(product.id)}
+              className="cursor-pointer rounded-3xl border border-border bg-card p-4 shadow-card transition hover:border-primary/40 hover:bg-accent/20"
+            >
               <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                 <img
                   src={productImage(product)}
@@ -466,13 +482,16 @@ export function CustomerProfile({
                   className={`h-12 w-12 shrink-0 rounded-xl object-cover ${categoryArt(product.category_name).tint}`}
                 />
                 <p className="truncate font-bold">{product.name}</p>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
-                    ready ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-                  }`}
-                >
-                  {done} / {product.loyalty_target}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+                      ready ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    {done} / {product.loyalty_target}
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+                </div>
               </div>
               <ProgressBar value={(done / product.loyalty_target) * 100} className="mt-3 h-2" />
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -491,17 +510,84 @@ export function CustomerProfile({
                   </span>
                 ))}
               </div>
-              <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Gift className="h-3.5 w-3.5 text-primary" aria-hidden />
-                {ready
-                  ? `Free ${product.name} ready to redeem`
-                  : `Buy ${Math.max(0, product.loyalty_target - reward - done)} more & get ${reward} FREE`}
-                {redeemed > 0 ? ` · ${redeemed} redeemed` : ""}
-              </p>
+              <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+                <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Gift className="h-3.5 w-3.5 text-primary" aria-hidden />
+                  {ready
+                    ? `Free ${product.name} ready to redeem`
+                    : `Buy ${Math.max(0, product.loyalty_target - reward - done)} more & get ${reward} FREE`}
+                  {redeemed > 0 ? ` · ${redeemed} redeemed` : ""}
+                </p>
+                <span className="font-semibold text-foreground">{purchases.length} txn</span>
+              </div>
             </article>
           );
         })}
       </div>
+
+      <Dialog open={Boolean(selectedProductForHistory)} onOpenChange={(open) => !open && setSelectedProductForHistory(null)}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>{selectedProduct?.name ?? "Transaction history"}</DialogTitle>
+            <DialogDescription>All purchases of this item with branch and amount details.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {selectedProductPurchases.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No purchase history found for this product.</p>
+            ) : (
+              selectedProductPurchases.map((row) => {
+                const matchingItems = row.transaction_items.filter(
+                  (item) => item.product_name === selectedProduct?.name,
+                );
+                const totalQty = matchingItems.reduce(
+                  (sum, item) => sum + item.paid_quantity + item.free_quantity,
+                  0,
+                );
+                const amount = matchingItems.reduce((sum, item) => sum + Number(item.line_total), 0);
+
+                return (
+                  <div key={row.id} className="rounded-2xl border border-border bg-secondary/50 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold">{row.branches?.name ?? "Branch"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(row.created_at).toLocaleString("en-IN")}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-extrabold">{formatMoney(amount, currency)}</p>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {row.payment_method === "cash" ? "Cash" : "Online"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {matchingItems.map((item) => (
+                        <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-xl bg-background/70 p-2 text-sm">
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold">{item.product_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.paid_quantity} paid · {item.free_quantity} free · {formatMoney(Number(item.unit_price), currency)} each
+                            </p>
+                          </div>
+                          <span className="shrink-0 font-bold">{formatMoney(Number(item.line_total), currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between border-t border-border pt-2 text-xs text-muted-foreground">
+                      <span>Total quantity</span>
+                      <span className="font-semibold text-foreground">{totalQty} items</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

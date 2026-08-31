@@ -469,11 +469,16 @@ export function ProductDialog({
                     : `${draft.branch_ids.length} branch${draft.branch_ids.length > 1 ? "es" : ""} selected`}
                 </p>
               </div>
-              <Button
-                type="button"
-                variant={allBranchesSelected ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => {
+            </div>
+
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+              <div className="min-w-0">
+                <p className="font-medium">Available to all branches</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={allBranchesMode}
+                onChange={() => {
                   setAllBranchesMode((current) => {
                     const next = !current;
                     if (next) {
@@ -482,10 +487,9 @@ export function ProductDialog({
                     return next;
                   });
                 }}
-              >
-                {allBranchesSelected ? "All branches on" : "All branches"}
-              </Button>
-            </div>
+                className="h-4 w-4 accent-primary"
+              />
+            </label>
 
             {!allBranchesSelected && (
               <div className="space-y-2">

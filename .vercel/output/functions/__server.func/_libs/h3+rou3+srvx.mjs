@@ -1,6 +1,6 @@
 import { PassThrough, Readable } from "node:stream";
 //#region node_modules/h3/node_modules/rou3/dist/index.mjs
-const NullProtoObj = /* @__PURE__ */ (() => {
+var NullProtoObj = /* @__PURE__ */ (() => {
 	const e = function() {};
 	return e.prototype = Object.create(null), Object.freeze(e.prototype), e;
 })();
@@ -33,9 +33,9 @@ function lazyInherit(target, source, sourceKey) {
 		if (modified) Object.defineProperty(target, key, desc);
 	}
 }
-const _needsNormRE = /(?:(?:^|\/)(?:\.|\.\.|%2e|%2e\.|\.%2e|%2e%2e)(?:\/|$))|[\\^#"<>{}`\x00-\x20\x7f-\uffff]/i;
-const _searchNeedsNormRE = /[#"'<>\x00-\x20\x7f-\uffff]/;
-const FastURL = /* @__PURE__ */ (() => {
+var _needsNormRE = /(?:(?:^|\/)(?:\.|\.\.|%2e|%2e\.|\.%2e|%2e%2e)(?:\/|$))|[\\^#"<>{}`\x00-\x20\x7f-\uffff]/i;
+var _searchNeedsNormRE = /[#"'<>\x00-\x20\x7f-\uffff]/;
+var FastURL = /* @__PURE__ */ (() => {
 	const NativeURL = globalThis.URL;
 	const NativeSearchParams = globalThis.URLSearchParams;
 	const FastURLSearchParams = class URLSearchParams {
@@ -181,7 +181,7 @@ const FastURL = /* @__PURE__ */ (() => {
 })();
 //#endregion
 //#region node_modules/h3/node_modules/srvx/dist/adapters/node.mjs
-const NodeResponse = /* @__PURE__ */ (() => {
+var NodeResponse = /* @__PURE__ */ (() => {
 	const NativeResponse = globalThis.Response;
 	class NodeResponse {
 		#body;
@@ -307,9 +307,9 @@ const NodeResponse = /* @__PURE__ */ (() => {
 })();
 //#endregion
 //#region node_modules/h3/dist/response.mjs
-const NEEDLESS_ESCAPE_SRC = String.raw`%(?:2[146-9A-E]|3[0-9ABD]|4[0-9A-F]|5[0-9ABDF]|6[1-9A-F]|7[0-9ACE])`;
-const NEEDLESS_ESCAPE_RE = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "i");
-const NEEDLESS_ESCAPE_RE_G = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "gi");
+var NEEDLESS_ESCAPE_SRC = String.raw`%(?:2[146-9A-E]|3[0-9ABD]|4[0-9A-F]|5[0-9ABDF]|6[1-9A-F]|7[0-9ACE])`;
+var NEEDLESS_ESCAPE_RE = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "i");
+var NEEDLESS_ESCAPE_RE_G = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "gi");
 function isNonCanonicalPathname(pathname) {
 	return NEEDLESS_ESCAPE_RE.test(pathname);
 }
@@ -323,11 +323,11 @@ function decodePathname(pathname) {
 		return;
 	}
 }
-const kEventNS = "h3.internal.event.";
-const kEventRes = /* @__PURE__ */ Symbol.for(`${kEventNS}res`);
-const kEventResHeaders = /* @__PURE__ */ Symbol.for(`${kEventNS}res.headers`);
-const kEventResErrHeaders = /* @__PURE__ */ Symbol.for(`${kEventNS}res.err.headers`);
-const kMalformedURL = /* @__PURE__ */ Symbol.for(`${kEventNS}malformed`);
+var kEventNS = "h3.internal.event.";
+var kEventRes = /* @__PURE__ */ Symbol.for(`${kEventNS}res`);
+var kEventResHeaders = /* @__PURE__ */ Symbol.for(`${kEventNS}res.headers`);
+var kEventResErrHeaders = /* @__PURE__ */ Symbol.for(`${kEventNS}res.err.headers`);
+var kMalformedURL = /* @__PURE__ */ Symbol.for(`${kEventNS}malformed`);
 var H3Event = class {
 	app;
 	req;
@@ -385,7 +385,7 @@ var H3EventResponse = class {
 		return this[kEventResErrHeaders] ||= new Headers();
 	}
 };
-const DISALLOWED_STATUS_CHARS = /[^\u0009\u0020-\u007E]/g;
+var DISALLOWED_STATUS_CHARS = /[^\u0009\u0020-\u007E]/g;
 function sanitizeStatusMessage(statusMessage = "") {
 	return statusMessage.replace(DISALLOWED_STATUS_CHARS, "");
 }
@@ -468,9 +468,9 @@ function isJSONSerializable(value, _type) {
 	const proto = Object.getPrototypeOf(value);
 	return proto === Object.prototype || proto === null;
 }
-const kEventDispose = /* @__PURE__ */ Symbol.for("h3.internal.event.dispose");
-const kNotFound = /* @__PURE__ */ Symbol.for("h3.notFound");
-const kHandled = /* @__PURE__ */ Symbol.for("h3.handled");
+var kEventDispose = /* @__PURE__ */ Symbol.for("h3.internal.event.dispose");
+var kNotFound = /* @__PURE__ */ Symbol.for("h3.notFound");
+var kHandled = /* @__PURE__ */ Symbol.for("h3.handled");
 function toResponse(val, event, config = {}) {
 	if (typeof val?.then === "function") return val.then((resolvedVal) => toResponse(resolvedVal, event, config), (r) => toResponse(toError(r), event, config));
 	let response;
@@ -496,7 +496,7 @@ function toError(value) {
 	error.cause = value;
 	return error;
 }
-const kHTTPResponse = /* @__PURE__ */ Symbol.for("h3.HTTPResponse");
+var kHTTPResponse = /* @__PURE__ */ Symbol.for("h3.HTTPResponse");
 var HTTPResponse = class {
 	#headers;
 	#init;
@@ -567,7 +567,7 @@ function mergeHeaders(base, overrides, target = new Headers(base)) {
 	else target.set(name, value);
 	return target;
 }
-const frozen = (name) => (...args) => {
+var frozen = (name) => (...args) => {
 	throw new Error(`Headers are frozen (${name} ${args.join(", ")})`);
 };
 var FrozenHeaders = class extends Headers {
@@ -575,8 +575,8 @@ var FrozenHeaders = class extends Headers {
 	append = frozen("append");
 	delete = frozen("delete");
 };
-const emptyHeaders = /* @__PURE__ */ new FrozenHeaders({ "content-length": "0" });
-const jsonHeaders = /* @__PURE__ */ new FrozenHeaders({ "content-type": "application/json;charset=UTF-8" });
+var emptyHeaders = /* @__PURE__ */ new FrozenHeaders({ "content-length": "0" });
+var jsonHeaders = /* @__PURE__ */ new FrozenHeaders({ "content-type": "application/json;charset=UTF-8" });
 function prepareResponseBody(val, event, config) {
 	if (val === null || val === void 0) return {
 		body: "",
@@ -668,7 +668,58 @@ function isUnhandledResponse(val) {
 }
 //#endregion
 //#region node_modules/h3/dist/cache.mjs
-const NoHandler = () => kNotFound;
+function toRequest(input, options) {
+	if (typeof input === "string") {
+		let url = input;
+		if (url[0] === "/") url = `http://${safeHost((options?.headers ? new Headers(options.headers) : void 0)?.get("host"))}${url}`;
+		return new Request(url, options);
+	} else if (options || input instanceof URL) return new Request(input, options);
+	return input;
+}
+function safeHost(host) {
+	return host && !/[/\\?#@\s]/.test(host) ? host : "localhost";
+}
+function defineHandler(input) {
+	if (typeof input === "function") return handlerWithFetch(input);
+	const handler = input.handler || (input.fetch ? function _fetchHandler(event) {
+		return input.fetch(event.req);
+	} : NoHandler);
+	const composed = input.middleware?.length && composeHandler(input.middleware, handler);
+	const eventHandler = handlerWithFetch(composed || handler);
+	return Object.assign(eventHandler, input, composed && { fetch: eventHandler.fetch });
+}
+function handlerWithFetch(handler) {
+	if ("fetch" in handler) return handler;
+	return Object.assign(handler, { fetch: (req) => {
+		if (typeof req === "string") req = new URL(req, "http://_");
+		if (req instanceof URL) req = new Request(req);
+		const event = new H3Event(req);
+		try {
+			return Promise.resolve(toResponse(handler(event), event));
+		} catch (error) {
+			return Promise.resolve(toResponse(toError(error), event));
+		}
+	} });
+}
+function defineLazyEventHandler(loader) {
+	let handler;
+	let promise;
+	return defineHandler(function lazyHandler(event) {
+		return handler ? handler(event) : (promise ??= Promise.resolve(loader()).then(function resolveLazyHandler(r) {
+			handler = toEventHandler(r) || toEventHandler(r.default);
+			if (typeof handler !== "function") throw new TypeError("Invalid lazy handler", { cause: { resolved: r } });
+			return handler;
+		})).then((r) => r(event));
+	});
+}
+function toEventHandler(handler) {
+	if (typeof handler === "function") return handler;
+	if (typeof handler?.handler === "function" && handler.constructor?.["~h3"]) return handler.handler;
+	if (typeof handler?.fetch === "function") return function _fetchHandler(event) {
+		return handler.fetch(event.req);
+	};
+}
+var NoHandler = () => kNotFound;
 var H3Core = class {
 	static "~h3" = true;
 	config;
@@ -733,4 +784,4 @@ function routeHandler(route) {
 	return data.middleware?.length ? data["~composed"] ??= composeHandler(data.middleware, data.handler) : data.handler;
 }
 //#endregion
-export { HTTPError as n, H3Core as t };
+export { HTTPError as i, defineLazyEventHandler as n, toRequest as r, H3Core as t };
