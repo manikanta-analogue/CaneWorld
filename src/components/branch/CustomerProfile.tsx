@@ -63,7 +63,11 @@ const RANGES = [
   { key: "today", label: "Today" },
   { key: "7", label: "7 days" },
   { key: "30", label: "30 days" },
+  { key: "custom", label: "Custom" },
 ] as const;
+
+const toInputDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 const METHODS = [
   { key: "all", label: "All payments" },
@@ -105,6 +109,8 @@ export function CustomerProfile({
   const fileRef = useRef<HTMLInputElement>(null);
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("all");
   const [method, setMethod] = useState<(typeof METHODS)[number]["key"]>("all");
+  const [customFrom, setCustomFrom] = useState(() => toInputDate(new Date(Date.now() - 30 * 864e5)));
+  const [customTo, setCustomTo] = useState(() => toInputDate(new Date()));
   const [bill, setBill] = useState<HistoryRow | null>(null);
   const [selectedProductForHistory, setSelectedProductForHistory] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -155,12 +161,20 @@ export function CustomerProfile({
           : range === "30"
             ? now - 30 * 864e5
             : 0;
+
     return rows.filter((row) => {
-      const inRange = new Date(row.created_at).getTime() >= cutoff;
+      const rowTime = new Date(row.created_at).getTime();
+      const inRange =
+        range === "custom"
+          ? rowTime >= new Date(`${customFrom}T00:00:00`).getTime() &&
+            rowTime <= new Date(`${customTo}T23:59:59.999`).getTime()
+          : range === "all"
+            ? true
+            : rowTime >= cutoff;
       const inMethod = method === "all" || row.payment_method === method;
       return inRange && inMethod;
     });
-  }, [history.data, range, method]);
+  }, [history.data, range, method, customFrom, customTo]);
 
   const spent = filtered.reduce((sum, row) => sum + Number(row.total_amount), 0);
   const freeGlasses = filtered.reduce((sum, row) => sum + row.free_glasses, 0);
@@ -230,6 +244,24 @@ export function CustomerProfile({
               </button>
             ))}
           </div>
+          {range === "custom" && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl bg-secondary/60 p-2">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="w-[140px] rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+              />
+              <span className="text-xs text-muted-foreground">to</span>
+              <input
+                type="date"
+                value={customTo}
+                min={customFrom}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="w-[140px] rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+              />
+            </div>
+          )}
           <div className="mt-2 flex flex-wrap gap-1.5">
             {/* {METHODS.map((item) => (
               <button
@@ -523,6 +555,30 @@ export function CustomerProfile({
                 </p>
                 <span className="font-semibold text-foreground">{purchases.length} txn</span>
               </div>
+
+              <div className="mt-3 rounded-xl bg-secondary/40 p-2">
+                <p className="text-[10px] font-semibold text-muted-foreground">Reward History</p>
+                <div className="mt-1.5 grid grid-cols-4 gap-1 text-[10px]">
+                  <div className="text-center">
+                    <p className="font-semibold">{progress?.purchased_count ?? 0}</p>
+                    <p className="text-muted-foreground">Purchased</p>
+                  </div>
+                  {/* <div className="text-center">
+                    <p className="font-semibold text-primary">
+                      {Math.floor(((progress?.purchased_count ?? 0) - 1) / rule.target) * reward}
+                    </p>
+                    <p className="text-muted-foreground">Earned</p>
+                  </div> */}
+                  <div className="text-center">
+                    <p className="font-semibold">{progress?.redeemed_count ?? 0}</p>
+                    <p className="text-muted-foreground">Redeemed</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-semibold text-primary">Buy {rule.target} Get {reward}</p>
+                    <p className="text-muted-foreground">Rule</p>
+                  </div>
+                </div>
+              </div>
             </article>
           );
         })}
@@ -532,10 +588,46 @@ export function CustomerProfile({
         <DialogContent className="max-h-[80vh] overflow-y-auto rounded-3xl">
           <DialogHeader>
             <DialogTitle>{selectedProduct?.name ?? "Transaction history"}</DialogTitle>
-            <DialogDescription>All purchases of this item with branch and amount details.</DialogDescription>
+            <DialogDescription>All purchases and rule changes for this product.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
+            {/* Show all rule changes for this product */}
+            {selectedProduct && (
+              <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                <p className="mb-2 text-xs font-semibold text-muted-foreground">Rule History</p>
+                <div className="space-y-1.5">
+                  {selectedProductPurchases.length > 0 ? (
+                    <div className="space-y-1">
+                      {selectedProductPurchases.map((row, idx) => {
+                        const matchingItems = row.transaction_items.filter(
+                          (item) => item.product_name === selectedProduct?.name,
+                        );
+                        // Extract rule info from transaction if available
+                        // This is a simplified version - we show the basic info
+                        const prevDate = idx > 0 ? new Date(selectedProductPurchases[idx - 1].created_at) : null;
+                        const currDate = new Date(row.created_at);
+                        
+                        return idx === 0 ? (
+                          <div key={`rule-${idx}`} className="rounded bg-background/50 p-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-primary">
+                                {selectedProduct?.loyalty_target} Get {selectedProduct?.reward_quantity || 1} Free
+                              </span>
+                              <span className="text-muted-foreground">From {currDate.toLocaleDateString("en-IN")}</span>
+                            </div>
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No purchases yet</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Show all transactions */}
             {selectedProductPurchases.length === 0 ? (
               <p className="text-sm text-muted-foreground">No purchase history found for this product.</p>
             ) : (

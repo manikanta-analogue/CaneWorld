@@ -1,4 +1,4 @@
-import { Minus, Plus, ShoppingCart } from "lucide-react";
+import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { buildOrder, formatMoney, type CartLine } from "@/lib/loyalty";
 import { categoryArt, productImage } from "@/lib/category-art";
 import { Button } from "@/components/ui/button";
@@ -79,24 +79,36 @@ export function CartScreen({
                 <p className="text-[11px] font-semibold text-primary">{freeQty} free from loyalty</p>
               ) : null}
             </div>
-            <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary p-1">
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              <div className="flex items-center gap-1.5 rounded-full bg-secondary p-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9 rounded-full"
+                  aria-label={`Decrease ${line.product.name}`}
+                  onClick={() => setQty(line.product.id, line.qty - 1)}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="w-6 text-center font-bold">{line.qty}</span>
+                <Button
+                  size="icon"
+                  className="h-9 w-9 rounded-full"
+                  aria-label={`Increase ${line.product.name}`}
+                  onClick={() => setQty(line.product.id, line.qty + 1)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
               <Button
-                size="icon"
+                type="button"
                 variant="ghost"
-                className="h-9 w-9 rounded-full"
-                aria-label={`Decrease ${line.product.name}`}
-                onClick={() => setQty(line.product.id, line.qty - 1)}
+                size="sm"
+                className="h-7 rounded-full px-2 text-[11px] font-medium text-muted-foreground hover:text-destructive"
+                onClick={() => setQty(line.product.id, 0)}
               >
-                <Minus className="h-4 w-4" />
-              </Button>
-              <span className="w-6 text-center font-bold">{line.qty}</span>
-              <Button
-                size="icon"
-                className="h-9 w-9 rounded-full"
-                aria-label={`Increase ${line.product.name}`}
-                onClick={() => setQty(line.product.id, line.qty + 1)}
-              >
-                <Plus className="h-4 w-4" />
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                Remove
               </Button>
             </div>
           </div>

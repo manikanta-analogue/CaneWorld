@@ -136,6 +136,23 @@ export function CustomerAuth({
     }
   };
 
+  const resendOtp = async () => {
+    if (!mobile) {
+      toast.error("Enter your mobile number first");
+      return;
+    }
+    setBusy(true);
+    try {
+      await beginCustomerAuth(token, mobile);
+      setOtp("");
+      toast.success(`OTP resent to ${mobile}. Demo code: ${DUMMY_OTP}`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const startReset = () => {
     setOtp("");
     setPin("");
@@ -262,14 +279,15 @@ export function CustomerAuth({
             <Button type="submit" className="h-14 w-full rounded-full text-base">
               Verify & continue
             </Button>
-            {/* <Button
+            <Button
               type="button"
               variant="ghost"
               className="h-12 w-full rounded-full"
-              onClick={() => setStep("mobile")}
+              onClick={() => void resendOtp()}
+              disabled={busy}
             >
-              Change number
-            </Button> */}
+              {busy ? "Sending…" : "Resend OTP"}
+            </Button>
           </form>
         )}
 

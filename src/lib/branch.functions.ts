@@ -330,6 +330,125 @@ export const getCustomerHistory = createServerFn({ method: "POST" })
     return rows ?? [];
   });
 
+/** Fetch comprehensive reward history with product-specific loyalty progression and all historical rules. */
+export const getRewardHistory = createServerFn({ method: "POST" })
+  .inputValidator((input: { token: string; customerId: string }) => ({
+    token: tokenSchema.parse(input.token),
+    customerId: uuidSchema.parse(input.customerId),
+  }))
+  .handler(async ({ data }) => {
+    const db = await admin();
+    await requireBranch(db, data.token);
+
+    // Get loyalty progress records with product info
+    const { data: progressRows, error: progressError } = await db
+      .from("loyalty_progress")
+      .select(
+        "id, product_id, purchased_count, redeemed_count, loyalty_target_at_creation, reward_quantity_at_creation, created_at, updated_at, products(name, loyalty_target, reward_quantity, loyalty_enabled)",
+      )
+      .eq("customer_id", data.customerId)
+      .order("created_at", { ascending: false });
+
+    if (progressError) throw progressError;
+
+    // Build reward history grouped by product
+    const rewardHistory = progressRows?.map((row: any) => ({
+      product_id: row.product_id,
+      product_name: row.products?.name ?? "Unknown",
+      current_rule: row.loyalty_target_at_creation && row.reward_quantity_at_creation
+        ? `Buy ${row.loyalty_target_at_creation} Get ${row.reward_quantity_at_creation} Free`
+        : "N/A",
+      purchased_count: row.purchased_count,
+      redeemed_count: row.redeemed_count,
+      free_count: row.purchased_count > 0 
+        ? Math.floor((row.purchased_count - 1) / (row.loyalty_target_at_creation || 1)) * (row.reward_quantity_at_creation || 1)
+        : 0,
+      started_at: row.created_at,
+      last_updated: row.updated_at,
+      loyalty_target_at_creation: row.loyalty_target_at_creation,
+      reward_quantity_at_creation: row.reward_quantity_at_creation,
+    })) ?? [];
+
+    // Get all historical rule changes by extracting from transactions
+    const ruleChangesByProduct = new Map<
+      string,
+      Array<{ rule: string; effective_from: string; effective_to?: string; count: number }>
+    >();
+
+    if (progressRows && progressRows.length > 0) {
+      // For each product, get all transactions to track all rule changes chronologically
+      for (const progress of progressRows) {
+        const productId = progress.product_id;
+
+        // Get all transactions for this product, ordered by date
+        const { data: txns, error: txnError } = await db
+          .from("transaction_items")
+          .select(
+            "transaction_id, transactions(created_at, loyalty_target, loyalty_reward)",
+          )
+          .eq("product_id", productId)
+          .eq("transactions.customer_id", data.customerId)
+          .order("transactions.created_at", { ascending: true });
+
+        if (!txnError && txns && txns.length > 0) {
+          const ruleTimeline: Array<{
+            rule: string;
+            effective_from: string;
+            effective_to?: string;
+            count: number;
+          }> = [];
+
+          let currentRule: string | null = null;
+          let ruleStart: string | null = null;
+          let ruleCount = 0;
+
+          for (const item of txns as any[]) {
+            if (item.transactions) {
+              const target = item.transactions.loyalty_target || 1;
+              const reward = item.transactions.loyalty_reward || 1;
+              const ruleStr = `Buy ${target} Get ${reward} Free`;
+
+              if (ruleStr !== currentRule) {
+                // Rule changed, save the previous one
+                if (currentRule !== null && ruleStart !== null) {
+                  ruleTimeline.push({
+                    rule: currentRule,
+                    effective_from: ruleStart,
+                    effective_to: item.transactions.created_at,
+                    count: ruleCount,
+                  });
+                }
+                currentRule = ruleStr;
+                ruleStart = item.transactions.created_at;
+                ruleCount = 1;
+              } else {
+                ruleCount++;
+              }
+            }
+          }
+
+          // Add the last rule
+          if (currentRule !== null && ruleStart !== null) {
+            ruleTimeline.push({
+              rule: currentRule,
+              effective_from: ruleStart,
+              count: ruleCount,
+            });
+          }
+
+          if (ruleTimeline.length > 0) {
+            ruleChangesByProduct.set(productId, ruleTimeline);
+          }
+        }
+      }
+    }
+
+    return {
+      rewardHistory,
+      ruleChanges: Object.fromEntries(ruleChangesByProduct),
+    };
+  });
+
 /** Profile card for the account tab, including a short-lived avatar link. */
 export const getCustomerProfile = createServerFn({ method: "POST" })
   .inputValidator((input: { token: string; customerId: string }) => ({

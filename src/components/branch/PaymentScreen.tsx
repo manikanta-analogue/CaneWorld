@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CreditCard, Gift, Loader2 } from "lucide-react";
+import { CreditCard, Gift, Loader2, Trash2 } from "lucide-react";
 import { buildOrder, formatMoney, type CartLine } from "@/lib/loyalty";
 import { Button } from "@/components/ui/button";
 
@@ -10,6 +10,7 @@ export function PaymentScreen({
   currency,
   busy,
   onBack,
+  onRemove,
   onPay,
 }: {
   cart: CartLine[];
@@ -18,6 +19,7 @@ export function PaymentScreen({
   currency: string;
   busy: boolean;
   onBack: () => void;
+  onRemove: (productId: string) => void;
   onPay: (method: "cash" | "razorpay") => void;
 }) {
   const { items, total, freeGlasses } = buildOrder(cart, redeemProductIds, progressByProduct);
@@ -44,13 +46,26 @@ export function PaymentScreen({
             .filter((item) => item.paid_quantity + item.free_quantity > 0)
             .map((item) => (
               <div key={item.product.id} className="flex items-center justify-between gap-3 text-sm">
-                <span className="min-w-0 truncate">
-                  {item.product.name} ×{item.paid_quantity}
-                  {item.free_quantity > 0 && (
-                    <span className="ml-1 font-semibold text-primary">+{item.free_quantity} free</span>
-                  )}
-                </span>
-                <span className="shrink-0 font-semibold">{formatMoney(item.line_total, currency)}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate">
+                    {item.product.name} ×{item.paid_quantity}
+                    {item.free_quantity > 0 && (
+                      <span className="ml-1 font-semibold text-primary">+{item.free_quantity} free</span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="font-semibold">{formatMoney(item.line_total, currency)}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${item.product.name} from checkout`}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-red-500 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-red-950/30"
+                    onClick={() => onRemove(item.product.id)}
+                    disabled={pending}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </div>
               </div>
             ))}
         </div>
@@ -80,9 +95,14 @@ export function PaymentScreen({
           )}
           {simulating ? "Contacting Razorpay (demo)…" : "Razorpay (demo)"}
         </Button>
-        <Button variant="ghost" className="h-12 w-full rounded-2xl" onClick={onBack} disabled={pending}>
+        <button
+          type="button"
+          className="h-12 w-full rounded-2xl text-center text-sm font-semibold text-emerald-600 underline-offset-4 transition hover:text-emerald-700 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={onBack}
+          disabled={pending}
+        >
           Back to cart
-        </Button>
+        </button>
       </section>
     </div>
   );

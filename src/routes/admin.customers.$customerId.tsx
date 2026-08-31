@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Download, Search, ShoppingBag, UserRound } from "lucide-react";
+import { ArrowLeft, Download, Search, ShoppingBag, UserRound, TrendingUp, Calendar, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/loyalty";
+import { getRewardHistory } from "@/lib/branch.functions";
 import { exportRows } from "@/lib/export";
 import { DateRangeFilter, useDateRange } from "@/components/DateRangeFilter";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,118 @@ async function loadCustomerDetail(customerId: string) {
   };
 }
 
+async function loadRewardHistory(customerId: string) {
+  // Get all transactions to build rule change timeline
+  const { data: txns, error: txnError } = await supabase
+    .from("transaction_items")
+    .select("product_id, transaction_id, products(name, loyalty_target, reward_quantity), transactions(created_at, customer_id)")
+    .eq("transactions.customer_id", customerId);
+
+  if (txnError) throw txnError;
+
+  // Sort transactions by created_at in JavaScript (PostgREST doesn't support ordering by nested relations)
+  const sortedTxns = ((txns ?? []) as any[]).sort((a, b) => {
+    const dateA = a.transactions?.created_at || "";
+    const dateB = b.transactions?.created_at || "";
+    return new Date(dateA).getTime() - new Date(dateB).getTime();
+  });
+
+  // Also get loyalty progress to have current state
+  const { data: progressRows, error: progressError } = await supabase
+    .from("loyalty_progress")
+    .select(
+      "product_id, purchased_count, redeemed_count, loyalty_target_at_creation, reward_quantity_at_creation, created_at, updated_at, products(name)",
+    )
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: true });
+
+  if (progressError) throw progressError;
+
+  // Build reward history from loyalty_progress
+  const rewardHistory = (progressRows ?? []).map((row: any) => ({
+    product_id: row.product_id,
+    product_name: row.products?.name ?? "Unknown",
+    purchased_count: row.purchased_count,
+    redeemed_count: row.redeemed_count,
+    loyalty_target_at_creation: row.loyalty_target_at_creation,
+    reward_quantity_at_creation: row.reward_quantity_at_creation,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+
+  // Build chronological rule changes from all transactions for each product
+  const ruleChangesByProduct = new Map<
+    string,
+    Array<{ rule: string; effective_from: string; effective_to?: string; transaction_count: number }>
+  >();
+
+  const productTxns = new Map<string, Array<any>>();
+  for (const txn of sortedTxns) {
+    const productId = txn.product_id;
+    if (!productTxns.has(productId)) {
+      productTxns.set(productId, []);
+    }
+    productTxns.get(productId)!.push(txn);
+  }
+
+  // For each product, extract rule changes chronologically
+  for (const [productId, transactions] of productTxns) {
+    const ruleTimeline: Array<{
+      rule: string;
+      effective_from: string;
+      effective_to?: string;
+      transaction_count: number;
+    }> = [];
+
+    let currentRule: string | null = null;
+    let ruleStart: string | null = null;
+    let ruleCount = 0;
+
+    for (const item of transactions) {
+      if (item.transactions && item.products) {
+        const target = item.products.loyalty_target || 1;
+        const reward = item.products.reward_quantity || 1;
+        const ruleStr = `Buy ${target} Get ${reward} Free`;
+
+        if (ruleStr !== currentRule) {
+          // Rule changed, save the previous one
+          if (currentRule !== null && ruleStart !== null) {
+            ruleTimeline.push({
+              rule: currentRule,
+              effective_from: ruleStart,
+              effective_to: item.transactions.created_at,
+              transaction_count: ruleCount,
+            });
+          }
+          currentRule = ruleStr;
+          ruleStart = item.transactions.created_at;
+          ruleCount = 1;
+        } else {
+          ruleCount++;
+        }
+      }
+    }
+
+    // Add the last rule
+    if (currentRule !== null && ruleStart !== null) {
+      ruleTimeline.push({
+        rule: currentRule,
+        effective_from: ruleStart,
+        transaction_count: ruleCount,
+      });
+    }
+
+    if (ruleTimeline.length > 0) {
+      ruleChangesByProduct.set(productId, ruleTimeline);
+    }
+  }
+
+  return {
+    rewardHistory,
+    ruleChanges: Object.fromEntries(ruleChangesByProduct),
+  };
+}
+
 function CustomerDetailPage() {
   const { customerId } = Route.useParams();
   const { range, setRange, fromIso, toIso } = useDateRange("30d");
@@ -111,9 +224,16 @@ function CustomerDetailPage() {
     queryKey: ["customer-detail", customerId],
     queryFn: () => loadCustomerDetail(customerId),
   });
+  const { data: rewardData } = useQuery({
+    queryKey: ["reward-history", customerId],
+    queryFn: () => loadRewardHistory(customerId),
+  });
 
   const customer = data?.customer;
   const txns = data?.txns ?? [];
+  const rewardHistory = rewardData?.rewardHistory ?? [];
+  const ruleChanges = rewardData?.ruleChanges ?? {};
+
   const branchOptions = useMemo(() => {
     const map = new Map<string, string>();
     txns.forEach((txn) => {
@@ -314,6 +434,102 @@ function CustomerDetailPage() {
               <p className="text-lg font-bold">{new Set(txns.map((txn) => txn.branch_id)).size}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl shadow-card">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" aria-hidden />
+            <h2 className="text-lg font-bold">Reward History & Rule Changes</h2>
+          </div>
+
+          {rewardHistory.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No loyalty progression yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {rewardHistory.map((item) => (
+                <div key={item.product_id} className="space-y-3 rounded-2xl border border-border p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold">{item.product_name}</h3>
+                    <Badge variant="secondary">
+                      {item.purchased_count} purchased · {Math.floor((item.purchased_count - 1) / (item.loyalty_target_at_creation || 1)) * (item.reward_quantity_at_creation || 1)} free
+                    </Badge>
+                  </div>
+
+                  <div className="rounded-lg bg-secondary/40 p-3">
+                    <p className="mb-2 text-xs font-semibold text-muted-foreground">Reward History</p>
+                    <div className="space-y-1">
+                      <div className="grid grid-cols-4 gap-2 text-xs font-medium text-muted-foreground">
+                        <span>Date</span>
+                        <span>Rule</span>
+                        <span className="text-right">Purchased</span>
+                        <span className="text-right">Free</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 border-t border-border pt-2 text-xs">
+                        <span>{new Date(item.created_at).toLocaleDateString("en-IN")}</span>
+                        <span className="font-semibold text-primary">
+                          Buy {item.loyalty_target_at_creation || 1} Get {item.reward_quantity_at_creation || 1} Free
+                        </span>
+                        <span className="text-right">{item.purchased_count}</span>
+                        <span className="text-right font-bold text-primary">
+                          {Math.floor((item.purchased_count - 1) / (item.loyalty_target_at_creation || 1)) * (item.reward_quantity_at_creation || 1)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {ruleChanges[item.product_id] && ruleChanges[item.product_id].length > 0 && (
+                    <div className="rounded-lg bg-secondary/40 p-3">
+                      <p className="mb-3 text-xs font-semibold text-muted-foreground">Rule History (All Changes)</p>
+                      <div className="space-y-2">
+                        {ruleChanges[item.product_id].map(
+                          (
+                            change: {
+                              rule: string;
+                              effective_from: string;
+                              effective_to?: string;
+                              transaction_count: number;
+                            },
+                            idx: number,
+                          ) => (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-border/50 bg-background/50 p-2"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <p className="text-xs font-semibold text-primary">{change.rule}</p>
+                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                                    <span className="inline-flex items-center gap-0.5">
+                                      <Calendar className="h-2.5 w-2.5" />
+                                      {new Date(change.effective_from).toLocaleDateString("en-IN")}
+                                    </span>
+                                    {change.effective_to && (
+                                      <>
+                                        <ChevronRight className="h-2.5 w-2.5" />
+                                        <span className="inline-flex items-center gap-0.5">
+                                          <Calendar className="h-2.5 w-2.5" />
+                                          {new Date(change.effective_to).toLocaleDateString("en-IN")}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                  {change.transaction_count} txn
+                                </span>
+                              </div>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

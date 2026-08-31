@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   ImagePlus,
+  MapPin,
   Pencil,
   Plus,
   RefreshCw,
@@ -71,6 +72,13 @@ async function fetchBranches() {
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as unknown as Branch[];
+}
+
+function directionsUrl(branch: { map_location?: string | null; address?: string | null; name: string }) {
+  const raw = (branch.map_location ?? "").trim();
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const query = raw || branch.address || branch.name;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(query)}`;
 }
 
 const emptyForm = {
@@ -618,12 +626,22 @@ function BranchesPage() {
                     {branch.owner_name} · {branch.mobile}
                   </p>
                   <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{branch.address}</p>
+                  {(branch.map_location || branch.address) && (
+                    <a
+                      href={directionsUrl(branch)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      <MapPin className="h-3.5 w-3.5" />
+                      Open map
+                    </a>
+                  )}
                 </div>
                 <Badge variant={branch.status === "active" ? "default" : "secondary"}>
                   {branch.status === "active" ? "Active" : "Inactive"}
                 </Badge>
               </div>
-
 
               <BranchQr token={branch.qr_token} branchName={branch.name} size={160} />
 

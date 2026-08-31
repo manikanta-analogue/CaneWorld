@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/loyalty";
 import { exportRows } from "@/lib/export";
@@ -70,6 +70,8 @@ function TransactionsPage() {
   const { access } = useStaffAccess();
   const [search, setSearch] = useState("");
   const [branch, setBranch] = useState("all");
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 15;
 
   const branches = useMemo(() => {
     const map = new Map<string, string>();
@@ -88,6 +90,22 @@ function TransactionsPage() {
     const matchesBranch = branch === "all" || row.branch_id === branch;
     return matchesTerm && matchesBranch;
   });
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginatedTransactions = useMemo(() => {
+    const startIdx = (page - 1) * itemsPerPage;
+    return filtered.slice(startIdx, startIdx + itemsPerPage);
+  }, [filtered, page]);
+
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
+  const handleBranchChange = (value: string) => {
+    setBranch(value);
+    setPage(1);
+  };
 
   const download = (format: "csv" | "xlsx") =>
     exportRows(
@@ -129,11 +147,11 @@ function TransactionsPage() {
                 placeholder="Search customer, mobile, product or reference"
                 value={search}
                 maxLength={60}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
               />
             </div>
             {access.isSuperAdmin && (
-              <Select value={branch} onValueChange={setBranch}>
+              <Select value={branch} onValueChange={handleBranchChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Branch" />
                 </SelectTrigger>
@@ -162,7 +180,7 @@ function TransactionsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((row) => (
+                {paginatedTransactions.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="whitespace-nowrap text-xs font-medium">
                       {row.reference_no || row.id}
@@ -204,6 +222,53 @@ function TransactionsPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Controls */}
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+              <p className="text-xs text-muted-foreground">
+                Showing {(page - 1) * itemsPerPage + 1}–{Math.min(page * itemsPerPage, filtered.length)} of {filtered.length} transactions
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                  disabled={page === 1}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded border border-border disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => Math.abs(p - page) <= 1 || p === 1 || p === totalPages)
+                    .map((p, idx, arr) => {
+                      if (idx > 0 && arr[idx - 1] !== p - 1) {
+                        return <span key={`ellipsis-${p}`} className="px-1 text-muted-foreground">…</span>;
+                      }
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setPage(p)}
+                          className={`inline-flex h-8 w-8 items-center justify-center rounded border ${
+                            page === p
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border hover:bg-muted"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                </div>
+                <button
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
+                  disabled={page === totalPages}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded border border-border disabled:opacity-50"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

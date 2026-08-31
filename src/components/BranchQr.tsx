@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { Download, Printer } from "lucide-react";
+import { Download, Printer, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /** Base used inside printed/downloaded QR codes. Prefer the deployed origin, with a local/dev override when needed. */
@@ -83,9 +83,17 @@ export function BranchQr({
           <div style={{ width: size, height: size }} className="animate-pulse rounded-xl bg-muted" />
         )}
       </div>
-      <p className="max-w-[240px] truncate text-center text-xs text-muted-foreground">
-        {branchUrl(token)}
-      </p>
+      <a
+        href={branchUrl(token)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="w-full max-w-[260px] overflow-hidden text-left text-xs text-blue-600 hover:underline dark:text-blue-400"
+      >
+        <span className="inline-flex max-w-full items-center gap-1">
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{branchUrl(token)}</span>
+          <ExternalLink className="h-3 w-3 shrink-0" />
+        </span>
+      </a>
       <div className="flex gap-2">
         <Button size="sm" variant="outline" onClick={download}>
           <Download className="mr-1 h-4 w-4" /> Download

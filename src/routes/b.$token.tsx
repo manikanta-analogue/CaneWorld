@@ -52,12 +52,28 @@ export const Route = createFileRoute("/b/$token")({
 
 type Tab = "home" | "cart" | "rewards" | "account";
 
+type PortalSessionState = {
+  customer: Customer | null;
+  tab: Tab;
+  pending: { cart: CartLine[]; redeem: string[] } | null;
+  receipt: Receipt | null;
+};
+
 const customerSessionKey = (token: string) => `branch-customer:${token}`;
 const tabSessionKey = (token: string) => `branch-tab:${token}`;
+const portalSessionKey = (token: string) => `branch-portal:${token}`;
 
 function BranchPortal() {
   const { token } = Route.useParams();
   const queryClient = useQueryClient();
+
+  const defaultPortalState: PortalSessionState = {
+    customer: null,
+    tab: "home",
+    pending: null,
+    receipt: null,
+  };
+
   const [customer, setCustomer] = useState<Customer | null>(() => {
     try {
       const saved = window.sessionStorage.getItem(customerSessionKey(token));
@@ -113,24 +129,49 @@ function BranchPortal() {
     setQuantities((current) => ({ ...current, [productId]: Math.max(0, Math.min(50, next)) }));
 
   useEffect(() => {
+    const nextState: PortalSessionState = {
+      customer,
+      tab,
+      pending,
+      receipt,
+    };
+
     if (!customer) {
       window.sessionStorage.removeItem(customerSessionKey(token));
+      window.sessionStorage.setItem(portalSessionKey(token), JSON.stringify({ ...defaultPortalState, tab, pending, receipt }));
       return;
     }
+
     window.sessionStorage.setItem(customerSessionKey(token), JSON.stringify(customer));
-  }, [customer, token]);
+    window.sessionStorage.setItem(tabSessionKey(token), tab);
+    window.sessionStorage.setItem(portalSessionKey(token), JSON.stringify(nextState));
+  }, [customer, pending, receipt, tab, token]);
 
   useEffect(() => {
-    window.sessionStorage.setItem(tabSessionKey(token), tab);
-  }, [tab, token]);
+    try {
+      const saved = window.sessionStorage.getItem(portalSessionKey(token));
+      if (!saved) return;
+      const restored = JSON.parse(saved) as Partial<PortalSessionState>;
+      if (restored.customer) setCustomer(restored.customer as Customer);
+      if (restored.tab && ["home", "cart", "rewards", "account"].includes(restored.tab)) {
+        setTab(restored.tab as Tab);
+      }
+      if (restored.pending) setPending(restored.pending as { cart: CartLine[]; redeem: string[] });
+      if (restored.receipt) setReceipt(restored.receipt as Receipt);
+    } catch {
+      // Ignore invalid persisted session state and fall back to defaults.
+    }
+  }, [token]);
 
   const resetSession = () => {
     setCustomer(null);
     setPending(null);
+    setReceipt(null);
     setQuantities({});
     setTab("home");
     window.sessionStorage.removeItem(customerSessionKey(token));
     window.sessionStorage.removeItem(tabSessionKey(token));
+    window.sessionStorage.removeItem(portalSessionKey(token));
   };
 
   const finishCheckout = () => {
@@ -139,6 +180,10 @@ function BranchPortal() {
     setQuantities({});
     setTab("home");
     window.sessionStorage.setItem(tabSessionKey(token), "home");
+    window.sessionStorage.setItem(
+      portalSessionKey(token),
+      JSON.stringify({ customer, tab: "home", pending: null, receipt: null }),
+    );
   };
 
   if (branchQuery.isLoading) {
@@ -261,6 +306,18 @@ function BranchPortal() {
             currency={currency}
             busy={busy}
             onBack={() => setPending(null)}
+            onRemove={(productId) => {
+              setQuantities((current) => ({ ...current, [productId]: 0 }));
+              setPending((current) => {
+                if (!current) return current;
+                return {
+                  cart: current.cart.map((line) =>
+                    line.product.id === productId ? { ...line, qty: 0 } : line,
+                  ),
+                  redeem: current.redeem.filter((id) => id !== productId),
+                };
+              });
+            }}
             onPay={pay}
           />
         ) : tab === "home" ? (

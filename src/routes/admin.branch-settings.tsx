@@ -25,11 +25,18 @@ async function fetchBranchById(branchId: string) {
 
 async function fetchBranchUsers() {
   const { data, error } = await supabase
-    .from("branch_users")
-    .select("id, email, branchId")
-    .order("created_at", { ascending: true });
+    .from("profiles")
+    .select("id, email, branch_id")
+    .not("branch_id", "is", null)
+    .order("email", { ascending: true });
+
   if (error) throw error;
-  return (data ?? []) as Array<{ id: string; email: string; branchId: string }>;
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    email: row.email as string,
+    branchId: row.branch_id as string,
+  }));
 }
 
 function BranchSettingsPage() {
@@ -102,6 +109,11 @@ function BranchSettingsPage() {
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{branch.owner_name}</p>
               <p className="mt-1 text-sm text-muted-foreground">{branch.mobile}</p>
+              {branchLogin?.email ? (
+                <p className="mt-1 text-sm text-muted-foreground">Login email: {branchLogin.email}</p>
+              ) : (
+                <p className="mt-1 text-sm text-muted-foreground">Login email: Not created yet</p>
+              )}
             </div>
           </div>
 
@@ -143,19 +155,7 @@ function BranchSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Branch Login Card */}
-      <Card className="rounded-2xl shadow-card">
-        <CardContent className="space-y-3 p-6">
-          <p className="text-sm font-semibold">Branch login</p>
-          <div>
-            <p className="text-xs text-muted-foreground">Email</p>
-            <p className="mt-1 text-sm font-medium">{branchLogin?.email ?? "Not created yet"}</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Staff sign in at <span className="font-semibold">/auth</span> with this email and password.
-          </p>
-        </CardContent>
-      </Card>
+
     </div>
   );
 }

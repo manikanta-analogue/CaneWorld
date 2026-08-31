@@ -64,6 +64,18 @@ async function loadDashboard(fromIso: string, toIso: string, branchId: string) {
   const allRows = (txns.data ?? []) as unknown as TxnRow[];
   const rows = branchId === "all" ? allRows : allRows.filter((row) => row.branch_id === branchId);
 
+  // Calculate today's sales (from 00:00 to 23:59 today)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const todaysSales = rows
+    .filter((row) => {
+      const txnDate = new Date(row.created_at);
+      return txnDate >= today && txnDate < tomorrow;
+    })
+    .reduce((sum, row) => sum + Number(row.total_amount), 0);
+
   const perBranch = new Map<string, number>();
   for (const row of rows) {
     const name = row.branches?.name ?? "Unknown";
@@ -76,6 +88,7 @@ async function loadDashboard(fromIso: string, toIso: string, branchId: string) {
     totalBranches: branchId === "all" ? (branches.data ?? []).length : 1,
     totalCustomers: customers.count ?? 0,
     sales: rows.reduce((sum, row) => sum + Number(row.total_amount), 0),
+    todaysSales,
     transactions: rows.length,
     freeGlasses: rows.reduce((sum, row) => sum + Number(row.free_glasses), 0),
     paidGlasses: rows.reduce((sum, row) => sum + Number(row.paid_glasses), 0),
@@ -181,7 +194,7 @@ function Dashboard() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            <StatCard label="Total Branches" value={String(data.totalBranches)} icon={Store} to="/admin/branches" />
+            <StatCard label="Today Sales" value={formatMoney(data.todaysSales)} icon={IndianRupee} to="/admin/transactions" />
             <StatCard label="Sales in range" value={formatMoney(data.sales)} icon={IndianRupee} to="/admin/transactions" />
             <StatCard label="Transactions" value={String(data.transactions)} icon={Receipt} to="/admin/transactions" />
             <StatCard label="Free glasses" value={String(data.freeGlasses)} icon={Gift} to="/admin/reports" />

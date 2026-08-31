@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, Outlet, createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Search, UserRound } from "lucide-react";
+import { Download, Search, UserRound, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/loyalty";
 import { exportRows } from "@/lib/export";
@@ -95,6 +95,8 @@ function CustomersPage() {
   const { range, setRange, fromIso, toIso } = useDateRange("30d");
   const [search, setSearch] = useState("");
   const [branch, setBranch] = useState("all");
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
   const { data: rows = [] } = useQuery({
     queryKey: ["admin-customers", access.branchId, fromIso, toIso],
     queryFn: () => loadCustomerTransactions(access.isSuperAdmin ? null : access.branchId),
@@ -204,6 +206,23 @@ function CustomersPage() {
     });
   }, [customerSummaries, search, branch, access.isSuperAdmin, fromIso, toIso]);
 
+  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  const paginatedCustomers = useMemo(() => {
+    const startIdx = (page - 1) * itemsPerPage;
+    return filteredCustomers.slice(startIdx, startIdx + itemsPerPage);
+  }, [filteredCustomers, page]);
+
+  // Reset to page 1 when filters change
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
+  const handleBranchChange = (value: string) => {
+    setBranch(value);
+    setPage(1);
+  };
+
   const download = (format: "csv" | "xlsx") => {
     exportRows(
       `customers-${range.from}-to-${range.to}`,
@@ -246,12 +265,12 @@ function CustomersPage() {
                 className="pl-9"
                 placeholder="Search by name, mobile or txn reference"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
               />
             </div>
 
             {access.isSuperAdmin && (
-              <Select value={branch} onValueChange={setBranch}>
+              <Select value={branch} onValueChange={handleBranchChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="All branches" />
                 </SelectTrigger>
@@ -281,7 +300,7 @@ function CustomersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCustomers.map((customer) => (
+                {paginatedCustomers.map((customer) => (
                   <TableRow
                     key={customer.id}
                     className="cursor-pointer transition hover:bg-muted/40"
@@ -343,6 +362,53 @@ function CustomersPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Controls */}
+          {filteredCustomers.length > 0 && (
+            <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+              <p className="text-xs text-muted-foreground">
+                Showing {(page - 1) * itemsPerPage + 1}–{Math.min(page * itemsPerPage, filteredCustomers.length)} of {filteredCustomers.length} customers
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                  disabled={page === 1}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded border border-border disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => Math.abs(p - page) <= 1 || p === 1 || p === totalPages)
+                    .map((p, idx, arr) => {
+                      if (idx > 0 && arr[idx - 1] !== p - 1) {
+                        return <span key={`ellipsis-${p}`} className="px-1 text-muted-foreground">…</span>;
+                      }
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setPage(p)}
+                          className={`inline-flex h-8 w-8 items-center justify-center rounded border ${
+                            page === p
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border hover:bg-muted"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                </div>
+                <button
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
+                  disabled={page === totalPages}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded border border-border disabled:opacity-50"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
