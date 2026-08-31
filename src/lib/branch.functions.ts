@@ -302,7 +302,9 @@ export const getCustomerProgress = createServerFn({ method: "POST" })
     await requireBranch(db, data.token);
     const { data: rows, error } = await db
       .from("loyalty_progress")
-      .select("id, customer_id, product_id, purchased_count, redeemed_count")
+      .select(
+        "id, customer_id, product_id, purchased_count, redeemed_count, loyalty_target_at_creation, reward_quantity_at_creation",
+      )
       .eq("customer_id", data.customerId);
     if (error) throw error;
     return rows ?? [];
@@ -461,7 +463,7 @@ export const submitCheckout = createServerFn({ method: "POST" })
 
     const { data: progressRows, error: progressError } = await db
       .from("loyalty_progress")
-      .select("id, product_id, purchased_count, redeemed_count")
+      .select("id, product_id, purchased_count, redeemed_count, loyalty_target_at_creation, reward_quantity_at_creation")
       .eq("customer_id", data.customerId);
     if (progressError) throw progressError;
     const progressByProduct = new Map((progressRows ?? []).map((row) => [row.product_id, row]));
@@ -469,10 +471,11 @@ export const submitCheckout = createServerFn({ method: "POST" })
     const items = lines.map((line) => {
       const product = (products ?? []).find((row) => row.id === line.productId);
       if (!product || !product.is_active) throw new Error("A selected product is unavailable.");
-      const target = Number(product.loyalty_target);
-      const rewardQty = Math.max(1, Number(product.reward_quantity ?? 1));
-      const loyaltyOn = product.loyalty_enabled !== false && target > 1;
-      const purchased = progressByProduct.get(product.id)?.purchased_count ?? 0;
+      const existing = progressByProduct.get(product.id);
+      const target = Number(existing?.loyalty_target_at_creation ?? product.loyalty_target ?? 1);
+      const rewardQty = Math.max(1, Number(existing?.reward_quantity_at_creation ?? product.reward_quantity ?? 1));
+      const loyaltyOn = product.loyalty_enabled !== false && target > 1 && rewardQty > 0;
+      const purchased = existing?.purchased_count ?? 0;
       const bundleFree = loyaltyOn ? Math.floor((purchased + line.qty) / target) * rewardQty - Math.floor(purchased / target) * rewardQty : 0;
       const free = data.redeemProductIds.includes(product.id) ? Math.min(bundleFree, line.qty) : 0;
       const paid = Math.max(0, line.qty - free);
@@ -484,6 +487,7 @@ export const submitCheckout = createServerFn({ method: "POST" })
         free_quantity: free,
         line_total: paid * Number(product.price),
         loyalty_target: target,
+        loyalty_reward: rewardQty,
       };
     });
 
@@ -524,18 +528,19 @@ export const submitCheckout = createServerFn({ method: "POST" })
 
     for (const item of items) {
       const current = progressByProduct.get(item.product_id);
-      let purchased = (current?.purchased_count ?? 0) + item.paid_quantity;
-      let redeemed = current?.redeemed_count ?? 0;
-      if (item.free_quantity > 0) {
-        purchased = Math.max(0, purchased - (item.loyalty_target - item.free_quantity));
-        redeemed += item.free_quantity;
-      }
+      const ruleTarget = Number(current?.loyalty_target_at_creation ?? item.loyalty_target ?? 1);
+      const ruleReward = Math.max(1, Number(current?.reward_quantity_at_creation ?? item.loyalty_reward ?? 1));
+      const nextPurchased = (current?.purchased_count ?? 0) + item.paid_quantity;
+      const nextRedeemed = (current?.redeemed_count ?? 0) + item.free_quantity;
+
       if (current) {
         const { error } = await db
           .from("loyalty_progress")
           .update({
-            purchased_count: purchased,
-            redeemed_count: redeemed,
+            purchased_count: nextPurchased,
+            redeemed_count: nextRedeemed,
+            loyalty_target_at_creation: current.loyalty_target_at_creation ?? ruleTarget,
+            reward_quantity_at_creation: current.reward_quantity_at_creation ?? ruleReward,
             updated_at: new Date().toISOString(),
           })
           .eq("id", current.id);
@@ -544,8 +549,10 @@ export const submitCheckout = createServerFn({ method: "POST" })
         const { error } = await db.from("loyalty_progress").insert({
           customer_id: data.customerId,
           product_id: item.product_id,
-          purchased_count: purchased,
-          redeemed_count: redeemed,
+          purchased_count: nextPurchased,
+          redeemed_count: nextRedeemed,
+          loyalty_target_at_creation: ruleTarget,
+          reward_quantity_at_creation: ruleReward,
         });
         if (error) throw error;
       }

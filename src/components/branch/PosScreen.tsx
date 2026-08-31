@@ -3,6 +3,7 @@ import { Search, Minus, Plus, Sparkles, ShoppingCart, Leaf, ChevronLeft, Chevron
 import {
   buildOrder,
   formatMoney,
+  getEffectiveLoyaltyRule,
   isEligible,
   loyaltyOn,
   rewardQuantity,
@@ -110,13 +111,17 @@ export function PosScreen({
 
   const nextReward = useMemo(() => {
     const candidates = products
-      .filter((product) => loyaltyOn(product))
+      .filter((product) => loyaltyOn(product, progressByProduct[product.id]))
       .map((product) => {
-        const done = progressByProduct[product.id]?.purchased_count ?? 0;
+        const progress = progressByProduct[product.id];
+        const rule = getEffectiveLoyaltyRule(product, progress);
+        const done = progress?.purchased_count ?? 0;
         return {
           product,
           done,
-          remaining: Math.max(0, product.loyalty_target - done),
+          remaining: Math.max(0, rule.target - done),
+          target: rule.target,
+          reward: rule.rewardQty,
         };
       })
       .filter((row) => row.done > 0);
@@ -227,17 +232,14 @@ export function PosScreen({
               <p className="truncate text-xs text-muted-foreground">
                 {nextReward.remaining === 0
                   ? `Free ${nextReward.product.name} ready to redeem`
-                  : `Buy ${nextReward.product.loyalty_target - nextReward.done} more & get ${rewardQuantity(nextReward.product)} FREE`}
+                  : `Buy ${nextReward.target - nextReward.done} more & get ${nextReward.reward} FREE`}
               </p>
             </div>
             <span className="shrink-0 rounded-full bg-accent px-3 py-1 text-xs font-bold text-accent-foreground">
-              {nextReward.done} / {nextReward.product.loyalty_target}
+              {nextReward.done} / {nextReward.target}
             </span>
           </div>
-          <ProgressBar
-            value={(nextReward.done / nextReward.product.loyalty_target) * 100}
-            className="mt-3 h-2"
-          />
+          <ProgressBar value={(nextReward.done / nextReward.target) * 100} className="mt-3 h-2" />
         </section>
       ) : null}
 
@@ -311,10 +313,12 @@ export function PosScreen({
           <h2 className="text-base font-extrabold">{group.name}</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {group.items.map((product) => {
-              const done = progressByProduct[product.id]?.purchased_count ?? 0;
-              const hasLoyalty = loyaltyOn(product);
-              const reward = rewardQuantity(product);
-              const eligible = isEligible(done, product.loyalty_target, reward, hasLoyalty);
+              const progress = progressByProduct[product.id];
+              const done = progress?.purchased_count ?? 0;
+              const rule = getEffectiveLoyaltyRule(product, progress);
+              const hasLoyalty = loyaltyOn(product, progress);
+              const reward = rewardQuantity(product, progress);
+              const eligible = isEligible(done, rule.target, reward, hasLoyalty);
               const qty = quantities[product.id] ?? 0;
               const art = categoryArt(product.category_name);
               return (
@@ -342,7 +346,7 @@ export function PosScreen({
                       {hasLoyalty ? (
                         <p className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-accent-foreground">
                           <Sparkles className="h-3 w-3" aria-hidden />
-                          Buy {product.loyalty_target} get {reward} free
+                          Buy {rule.target} get {reward} free
                         </p>
                       ) : null}
                     </div>
@@ -356,10 +360,10 @@ export function PosScreen({
                             {eligible ? "Free glass ready!" : "Progress"}
                           </span>
                           <span className="font-semibold">
-                            {done} / {product.loyalty_target}
+                            {done} / {rule.target}
                           </span>
                         </div>
-                        <ProgressBar value={(done / product.loyalty_target) * 100} className="h-1.5" />
+                        <ProgressBar value={(done / rule.target) * 100} className="h-1.5" />
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">{product.volume_ml} ml</span>

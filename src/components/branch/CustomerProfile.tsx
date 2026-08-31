@@ -9,6 +9,7 @@ import {
 } from "@/lib/branch.functions";
 import {
   formatMoney,
+  getEffectiveLoyaltyRule,
   isEligible,
   loyaltyOn,
   rewardQuantity,
@@ -458,10 +459,12 @@ export function CustomerProfile({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {loyaltyProducts.map((product) => {
-          const done = byProduct[product.id]?.purchased_count ?? 0;
-          const redeemed = byProduct[product.id]?.redeemed_count ?? 0;
-          const reward = rewardQuantity(product);
-          const ready = isEligible(done, product.loyalty_target, reward, true);
+          const progress = byProduct[product.id];
+          const done = progress?.purchased_count ?? 0;
+          const redeemed = progress?.redeemed_count ?? 0;
+          const rule = getEffectiveLoyaltyRule(product, progress);
+          const reward = rewardQuantity(product, progress);
+          const ready = isEligible(done, rule.target, reward, true);
           const purchases = (history.data ?? []).filter((row) =>
             row.transaction_items.some((item) => item.product_name === product.name),
           );
@@ -488,25 +491,25 @@ export function CustomerProfile({
                       ready ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
                     }`}
                   >
-                    {done} / {product.loyalty_target}
+                    {done} / {rule.target}
                   </span>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden />
                 </div>
               </div>
-              <ProgressBar value={(done / product.loyalty_target) * 100} className="mt-3 h-2" />
+              <ProgressBar value={(done / rule.target) * 100} className="mt-3 h-2" />
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {Array.from({ length: product.loyalty_target }).map((_, index) => (
+                {Array.from({ length: rule.target }).map((_, index) => (
                   <span
                     key={index}
                     className={`h-6 w-6 rounded-full border text-center text-[10px] leading-6 ${
                       index < done
                         ? "border-primary bg-primary text-primary-foreground"
-                        : index >= product.loyalty_target - reward
+                        : index >= rule.target - reward
                           ? "border-primary text-primary"
                           : "border-border text-muted-foreground"
                     }`}
                   >
-                    {index >= product.loyalty_target - reward ? "★" : index + 1}
+                    {index >= rule.target - reward ? "★" : index + 1}
                   </span>
                 ))}
               </div>
@@ -515,7 +518,7 @@ export function CustomerProfile({
                   <Gift className="h-3.5 w-3.5 text-primary" aria-hidden />
                   {ready
                     ? `Free ${product.name} ready to redeem`
-                    : `Buy ${Math.max(0, product.loyalty_target - done)} more & get ${reward} FREE`}
+                    : `Buy ${Math.max(0, rule.target - done)} more & get ${reward} FREE`}
                   {redeemed > 0 ? ` · ${redeemed} redeemed` : ""}
                 </p>
                 <span className="font-semibold text-foreground">{purchases.length} txn</span>

@@ -257,6 +257,7 @@ function BranchPortal() {
           <PaymentScreen
             cart={pending.cart}
             redeemProductIds={pending.redeem}
+            progressByProduct={progressByProduct}
             currency={currency}
             busy={busy}
             onBack={() => setPending(null)}
@@ -281,6 +282,7 @@ function BranchPortal() {
         ) : tab === "cart" ? (
           <CartScreen
             cart={cart}
+            progressByProduct={progressByProduct}
             currency={currency}
             setQty={setQty}
             onProceed={proceed}

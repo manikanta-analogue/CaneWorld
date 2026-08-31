@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 
 export function CartScreen({
   cart,
+  progressByProduct,
   currency,
   setQty,
   onProceed,
   onBrowse,
 }: {
   cart: CartLine[];
+  progressByProduct?: Record<string, { purchased_count: number; loyalty_target_at_creation?: number | null; reward_quantity_at_creation?: number | null } | undefined>;
   currency: string;
   setQty: (productId: string, next: number) => void;
   onProceed: () => void;
@@ -19,12 +21,15 @@ export function CartScreen({
   const lines = cart.filter((line) => line.qty > 0);
   const redeemIds = lines
     .filter((line) => {
-      const target = Number(line.product.loyalty_target ?? 1);
-      const reward = Number(line.product.reward_quantity ?? 1);
-      return line.product.loyalty_enabled !== false && target > 1 && Math.floor(line.qty / target) * reward > 0;
+      const existing = progressByProduct?.[line.product.id];
+      const prior = existing?.purchased_count ?? 0;
+      const target = Number(existing?.loyalty_target_at_creation ?? line.product.loyalty_target ?? 1);
+      const reward = Number(existing?.reward_quantity_at_creation ?? line.product.reward_quantity ?? 1);
+      const eligible = line.product.loyalty_enabled !== false && target > 1 && reward > 0;
+      return eligible && Math.floor((prior + line.qty - 1) / target) * reward > Math.floor((prior - 1) / target) * reward;
     })
     .map((line) => line.product.id);
-  const { total, paidGlasses, freeGlasses, items } = buildOrder(cart, redeemIds);
+  const { total, paidGlasses, freeGlasses, items } = buildOrder(cart, redeemIds, progressByProduct);
 
   if (lines.length === 0) {
     return (

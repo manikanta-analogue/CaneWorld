@@ -61,7 +61,7 @@ async function loadCatalogue() {
 function loyaltyLabel(product: MenuProduct) {
   if (!product.loyalty_enabled) return "Loyalty off";
   const reward = product.reward_quantity || 1;
-  return `Buy ${Math.max(0, product.loyalty_target - reward)} get ${reward} free`;
+  return `Buy ${product.loyalty_target} get ${reward} free`;
 }
 
 function MenuPage() {

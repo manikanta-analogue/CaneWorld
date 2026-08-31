@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 export function PaymentScreen({
   cart,
   redeemProductIds,
+  progressByProduct,
   currency,
   busy,
   onBack,
@@ -13,12 +14,13 @@ export function PaymentScreen({
 }: {
   cart: CartLine[];
   redeemProductIds: string[];
+  progressByProduct?: Record<string, { purchased_count: number; loyalty_target_at_creation?: number | null; reward_quantity_at_creation?: number | null } | undefined>;
   currency: string;
   busy: boolean;
   onBack: () => void;
   onPay: (method: "cash" | "razorpay") => void;
 }) {
-  const { items, total, freeGlasses } = buildOrder(cart, redeemProductIds);
+  const { items, total, freeGlasses } = buildOrder(cart, redeemProductIds, progressByProduct);
   const [simulating, setSimulating] = useState(false);
 
   const payRazorpay = () => {
