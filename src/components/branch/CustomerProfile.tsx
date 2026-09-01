@@ -494,12 +494,11 @@ export function CustomerProfile({
         const current = timeline.get(key);
         if (current) {
           current.count += 1;
-          current.lastDate = entry.date;
         } else {
-          timeline.set(key, { ...entry, count: 1, lastDate: entry.date });
+          timeline.set(key, { ...entry, count: 1 });
         }
         return timeline;
-      }, new Map<string, { rule: string | null; date: string; lastDate: string; count: number }>())
+      }, new Map<string, { rule: string | null; date: string; count: number }>())
       .values(),
   );
 
@@ -524,7 +523,6 @@ export function CustomerProfile({
           const reward = rule.rewardQty;
           const purchasedInCycle = progress?.purchased_count ?? 0;
           const ready = rewardBundlesForQty(progress?.purchased_count ?? 0, product, progress) > 0;
-          // A completed Buy-X card stays visibly complete while its reward is waiting.
           const done = ready ? rule.target : Math.min(rule.target, purchasedInCycle % rule.target);
 
           return (
@@ -622,14 +620,12 @@ export function CustomerProfile({
                         <div key={entry.rule} className="rounded bg-background/50 p-2 text-xs">
                           <p className="font-semibold text-primary">{entry.rule}</p>
                           <p className="mt-0.5 text-muted-foreground">
-                            Used in {entry.count} sale{entry.count === 1 ? "" : "s"} · first used{" "}
-                            {new Date(entry.date).toLocaleDateString("en-IN")}
+                            Used in {entry.count} sale{entry.count === 1 ? "" : "s"} · first used {new Date(entry.date).toLocaleDateString("en-IN")}
                           </p>
                         </div>
                       ) : (
                         <div key="legacy" className="rounded border border-border bg-background/50 p-2 text-[11px] text-muted-foreground">
-                          {entry.count} older sale{entry.count === 1 ? "" : "s"} do not have a saved reward rule.
-                          Paid and free quantities below are still accurate.
+                          {entry.count} older sale{entry.count === 1 ? "" : "s"} do not have a saved reward rule. Paid and free quantities below are still accurate.
                         </div>
                       ),
                     )

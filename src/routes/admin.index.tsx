@@ -55,7 +55,7 @@ async function loadDashboard(fromIso: string, toIso: string, branchId: string) {
       .gte("created_at", fromIso)
       .lte("created_at", toIso)
       .order("created_at", { ascending: false })
-      .limit(1000),
+      .limit(10000),
   ]);
 
   if (branches.error) throw branches.error;
@@ -76,7 +76,12 @@ async function loadDashboard(fromIso: string, toIso: string, branchId: string) {
     })
     .reduce((sum, row) => sum + Number(row.total_amount), 0);
 
-  const perBranch = new Map<string, number>();
+  // Seed every visible branch so zero-sales branches are still represented.
+  const perBranch = new Map(
+    (branches.data ?? [])
+      .filter((branch) => branchId === "all" || branch.id === branchId)
+      .map((branch) => [branch.name, 0]),
+  );
   for (const row of rows) {
     const name = row.branches?.name ?? "Unknown";
     perBranch.set(name, (perBranch.get(name) ?? 0) + Number(row.total_amount));
@@ -92,7 +97,9 @@ async function loadDashboard(fromIso: string, toIso: string, branchId: string) {
     transactions: rows.length,
     freeGlasses: rows.reduce((sum, row) => sum + Number(row.free_glasses), 0),
     paidGlasses: rows.reduce((sum, row) => sum + Number(row.paid_glasses), 0),
-    recent: rows.slice(0, 8),
+    // The dashboard card intentionally shows only the five newest sales.
+    // The full `rows` collection remains available for branch performance.
+    recent: rows.slice(0, 5),
     branchPerformance: Array.from(perBranch, ([name, sales]) => ({ name, sales })).sort(
       (a, b) => b.sales - a.sales,
     ),
@@ -207,14 +214,34 @@ function Dashboard() {
               <CardHeader>
                 <CardTitle className="text-base">Branch performance</CardTitle>
               </CardHeader>
-              <CardContent className="h-64">
+              <CardContent className="h-72 pt-2">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.branchPerformance}>
+                  <BarChart
+                    data={data.branchPerformance}
+                    margin={{ top: 12, right: 8, bottom: 8, left: 12 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                    <XAxis dataKey="name" tickLine={false} fontSize={11} interval={0} height={50} angle={-20} textAnchor="end" />
-                    <YAxis tickLine={false} fontSize={11} width={44} />
+                    <XAxis
+                      dataKey="name"
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={11}
+                      interval={0}
+                      height={58}
+                      angle={-20}
+                      textAnchor="end"
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={11}
+                      width={68}
+                      tickFormatter={(value: number) =>
+                        `₹${new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`
+                      }
+                    />
                     <Tooltip formatter={(value: number) => formatMoney(value)} />
-                    <Bar dataKey="sales" fill="var(--primary)" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="sales" name="Sales" fill="var(--primary)" radius={[6, 6, 0, 0]} maxBarSize={48} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
