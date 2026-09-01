@@ -44,14 +44,23 @@ type Row = {
     product_name: string;
     paid_quantity: number;
     free_quantity: number;
+    loyalty_target_at_purchase: number | null;
+    reward_quantity_at_purchase: number | null;
   }[];
 };
+
+function historicalRuleLabel(item: Row["transaction_items"][number]) {
+  if (!item.loyalty_target_at_purchase || !item.reward_quantity_at_purchase) {
+    return "Historical rule unavailable";
+  }
+  return `Buy ${item.loyalty_target_at_purchase} · Get ${item.reward_quantity_at_purchase} free`;
+}
 
 async function loadTransactions(fromIso: string, toIso: string) {
   const { data, error } = await supabase
     .from("transactions")
     .select(
-      "id, created_at, total_amount, payment_method, reference_no, status, branch_id, branches(name), customers(name, mobile), transaction_items(product_name, paid_quantity, free_quantity)",
+      "id, created_at, total_amount, payment_method, reference_no, status, branch_id, branches(name), customers(name, mobile), transaction_items(product_name, paid_quantity, free_quantity, loyalty_target_at_purchase, reward_quantity_at_purchase)",
     )
     .gte("created_at", fromIso)
     .lte("created_at", toIso)
@@ -117,7 +126,7 @@ function TransactionsPage() {
         Product: row.transaction_items
           .map(
             (item) =>
-              `${item.product_name} x${item.paid_quantity}${item.free_quantity ? ` +${item.free_quantity} free` : ""}`,
+              `${item.product_name}: paid ${item.paid_quantity}, free ${item.free_quantity} (${historicalRuleLabel(item)})`,
           )
           .join(", "),
         Amount: Number(row.total_amount),
@@ -174,7 +183,7 @@ function TransactionsPage() {
                   <TableHead>Transaction ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Branch</TableHead>
-                  <TableHead>Product</TableHead>
+                  <TableHead>Items & reward rule used</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -191,16 +200,23 @@ function TransactionsPage() {
                       <span className="text-muted-foreground">{row.customers?.mobile ?? "—"}</span>
                     </TableCell>
                     <TableCell className="text-xs">{row.branches?.name ?? "Unknown"}</TableCell>
-                    <TableCell className="text-xs">
-                      {row.transaction_items
-                        .filter((item) => item.paid_quantity + item.free_quantity > 0)
-                        .map(
-                          (item) =>
-                            `${item.product_name} ×${item.paid_quantity}${
-                              item.free_quantity ? ` +${item.free_quantity} free` : ""
-                            }`,
-                        )
-                        .join(", ") || "—"}
+                    <TableCell className="min-w-[260px] text-xs">
+                      <div className="space-y-2">
+                        {row.transaction_items
+                          .filter((item) => item.paid_quantity + item.free_quantity > 0)
+                          .map((item, index) => (
+                            <div key={`${row.id}-${item.product_name}-${index}`}>
+                              <p className="font-semibold text-foreground">{item.product_name}</p>
+                              <p className="text-muted-foreground">
+                                Paid {item.paid_quantity} · Free {item.free_quantity}
+                              </p>
+                              <p className="mt-0.5 text-[11px] font-medium text-primary">
+                                Rule at sale: {historicalRuleLabel(item)}
+                              </p>
+                            </div>
+                          ))}
+                        {row.transaction_items.every((item) => item.paid_quantity + item.free_quantity <= 0) && "—"}
+                      </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-right text-xs font-bold">
                       {formatMoney(Number(row.total_amount))}

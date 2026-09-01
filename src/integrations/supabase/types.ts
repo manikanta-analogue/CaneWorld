@@ -151,27 +151,39 @@ export type Database = {
       }
       loyalty_progress: {
         Row: {
+          created_at: string
           customer_id: string
           id: string
+          loyalty_target_at_creation: number
           product_id: string
           purchased_count: number
           redeemed_count: number
+          reward_quantity_at_creation: number
+          loyalty_rule_locked: boolean
           updated_at: string
         }
         Insert: {
+          created_at?: string
           customer_id: string
           id?: string
+          loyalty_target_at_creation?: number
           product_id: string
           purchased_count?: number
           redeemed_count?: number
+          reward_quantity_at_creation?: number
+          loyalty_rule_locked?: boolean
           updated_at?: string
         }
         Update: {
+          created_at?: string
           customer_id?: string
           id?: string
+          loyalty_target_at_creation?: number
           product_id?: string
           purchased_count?: number
           redeemed_count?: number
+          reward_quantity_at_creation?: number
+          loyalty_rule_locked?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -290,9 +302,11 @@ export type Database = {
           free_quantity: number
           id: string
           line_total: number
+          loyalty_target_at_purchase: number | null
           paid_quantity: number
           product_id: string
           product_name: string
+          reward_quantity_at_purchase: number | null
           transaction_id: string
           unit_price: number
         }
@@ -300,9 +314,11 @@ export type Database = {
           free_quantity?: number
           id?: string
           line_total?: number
+          loyalty_target_at_purchase?: number | null
           paid_quantity?: number
           product_id: string
           product_name: string
+          reward_quantity_at_purchase?: number | null
           transaction_id: string
           unit_price?: number
         }
@@ -310,9 +326,11 @@ export type Database = {
           free_quantity?: number
           id?: string
           line_total?: number
+          loyalty_target_at_purchase?: number | null
           paid_quantity?: number
           product_id?: string
           product_name?: string
+          reward_quantity_at_purchase?: number | null
           transaction_id?: string
           unit_price?: number
         }

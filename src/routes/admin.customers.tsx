@@ -45,6 +45,8 @@ type TransactionRow = {
     paid_quantity: number;
     free_quantity: number;
     line_total: number;
+    loyalty_target_at_purchase: number | null;
+    reward_quantity_at_purchase: number | null;
   }[];
 };
 
@@ -74,7 +76,7 @@ async function loadCustomerTransactions(branchId?: string | null) {
   let query = supabase
     .from("transactions")
     .select(
-      "id, created_at, total_amount, payment_method, reference_no, branch_id, branches(name), customers(id, name, mobile), transaction_items(product_name, paid_quantity, free_quantity, line_total)",
+      "id, created_at, total_amount, payment_method, reference_no, branch_id, branches(name), customers(id, name, mobile), transaction_items(product_name, paid_quantity, free_quantity, line_total, loyalty_target_at_purchase, reward_quantity_at_purchase)",
     )
     .order("created_at", { ascending: false })
     .limit(10000);
@@ -133,7 +135,7 @@ function CustomersPage() {
         .filter((item) => (item.paid_quantity ?? 0) + (item.free_quantity ?? 0) > 0)
         .map(
           (item) =>
-            `${item.product_name} x${item.paid_quantity}${item.free_quantity ? ` + ${item.free_quantity} free` : ""}`,
+            `${item.product_name} x${item.paid_quantity}${item.free_quantity ? ` + ${item.free_quantity} free` : ""}${item.loyalty_target_at_purchase && item.reward_quantity_at_purchase ? ` · Buy ${item.loyalty_target_at_purchase} Get ${item.reward_quantity_at_purchase} Free` : " · Historical rule unavailable"}`,
         );
       const paidItemsThisTxn = (row.transaction_items ?? []).reduce(
         (sum, item) => sum + Number(item.paid_quantity ?? 0),

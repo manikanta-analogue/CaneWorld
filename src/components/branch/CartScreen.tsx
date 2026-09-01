@@ -1,5 +1,5 @@
 import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
-import { buildOrder, formatMoney, type CartLine } from "@/lib/loyalty";
+import { buildOrder, formatMoney, redeemableFreeQuantity, type CartLine } from "@/lib/loyalty";
 import { categoryArt, productImage } from "@/lib/category-art";
 import { Button } from "@/components/ui/button";
 
@@ -12,7 +12,7 @@ export function CartScreen({
   onBrowse,
 }: {
   cart: CartLine[];
-  progressByProduct?: Record<string, { purchased_count: number; loyalty_target_at_creation?: number | null; reward_quantity_at_creation?: number | null } | undefined>;
+  progressByProduct?: Record<string, { purchased_count: number; redeemed_count?: number; loyalty_target_at_creation?: number | null; reward_quantity_at_creation?: number | null; loyalty_rule_locked?: boolean } | undefined>;
   currency: string;
   setQty: (productId: string, next: number) => void;
   onProceed: () => void;
@@ -23,10 +23,13 @@ export function CartScreen({
     .filter((line) => {
       const existing = progressByProduct?.[line.product.id];
       const prior = existing?.purchased_count ?? 0;
-      const target = Number(existing?.loyalty_target_at_creation ?? line.product.loyalty_target ?? 1);
-      const reward = Number(existing?.reward_quantity_at_creation ?? line.product.reward_quantity ?? 1);
-      const eligible = line.product.loyalty_enabled !== false && target > 1 && reward > 0;
-      return eligible && Math.floor((prior + line.qty - 1) / target) * reward > Math.floor((prior - 1) / target) * reward;
+      return redeemableFreeQuantity(
+        prior,
+        existing?.redeemed_count ?? 0,
+        line.qty,
+        line.product,
+        existing,
+      ) > 0;
     })
     .map((line) => line.product.id);
   const { total, paidGlasses, freeGlasses, items } = buildOrder(cart, redeemIds, progressByProduct);

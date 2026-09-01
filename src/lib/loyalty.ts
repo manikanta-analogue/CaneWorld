@@ -10,6 +10,12 @@ import {
   verifyOtpAndSetPin,
   submitCheckout,
 } from "@/lib/branch.functions";
+import {
+  freeRewardsFromPurchases,
+  redeemableFreeQuantityForRule,
+} from "@/lib/loyalty-calculations";
+
+export { freeRewardsFromPurchases } from "@/lib/loyalty-calculations";
 
 
 export type Product = {
@@ -55,12 +61,21 @@ export type Progress = {
   redeemed_count: number;
   loyalty_target_at_creation?: number | null;
   reward_quantity_at_creation?: number | null;
+  loyalty_rule_locked?: boolean;
   created_at?: string;
 };
 
 export type CartLine = { product: Product; qty: number };
 
 export type EligibleReward = { product: Product; progress: number; target: number };
+
+type LoyaltyProgressSnapshot = Pick<
+  Progress,
+  "purchased_count" | "loyalty_target_at_creation" | "reward_quantity_at_creation"
+> & {
+  redeemed_count?: number;
+  loyalty_rule_locked?: boolean;
+};
 
 export const formatMoney = (amount: number, currency = "₹") =>
   `${currency}${Number(amount ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -75,27 +90,67 @@ export function isEligible(progress: number, target: number, reward = 1, enabled
 
 export function getEffectiveLoyaltyRule(
   product: Product,
-  progress?: Pick<Progress, "loyalty_target_at_creation" | "reward_quantity_at_creation"> | null,
+  progress?: Pick<
+    Progress,
+    "purchased_count" | "loyalty_target_at_creation" | "reward_quantity_at_creation" | "loyalty_rule_locked"
+  > | null,
 ) {
-  const target = Number(progress?.loyalty_target_at_creation ?? product.loyalty_target ?? 1);
-  const rewardQty = Math.max(1, Number(progress?.reward_quantity_at_creation ?? product.reward_quantity ?? 1));
+  const useLockedSnapshot = Number(progress?.purchased_count ?? 0) > 0 && progress?.loyalty_rule_locked !== false;
+  const target = Number(
+    (useLockedSnapshot ? progress?.loyalty_target_at_creation : undefined) ?? product.loyalty_target ?? 1,
+  );
+  const rewardQty = Math.max(
+    1,
+    Number((useLockedSnapshot ? progress?.reward_quantity_at_creation : undefined) ?? product.reward_quantity ?? 1),
+  );
   const enabled = product.loyalty_enabled !== false && target > 1 && rewardQty > 0;
   return { target, rewardQty, enabled };
 }
 
-export const rewardQuantity = (product: Product, progress?: Pick<Progress, "loyalty_target_at_creation" | "reward_quantity_at_creation"> | null) =>
+export function getCurrentLoyaltyRule(product: Product) {
+  const target = Number(product.loyalty_target ?? 1);
+  const rewardQty = Math.max(1, Number(product.reward_quantity ?? 1));
+  const enabled = product.loyalty_enabled !== false && target > 1 && rewardQty > 0;
+  return { target, rewardQty, enabled };
+}
+
+export function getDisplayLoyaltyRule(
+  product: Product,
+  progress?: Pick<Progress, "purchased_count" | "loyalty_target_at_creation" | "reward_quantity_at_creation"> & {
+    loyalty_rule_locked?: boolean;
+  } | null,
+) {
+  return getEffectiveLoyaltyRule(product, progress);
+}
+
+export const rewardQuantity = (product: Product, progress?: Pick<Progress, "purchased_count" | "loyalty_target_at_creation" | "reward_quantity_at_creation" | "loyalty_rule_locked"> | null) =>
   getEffectiveLoyaltyRule(product, progress).rewardQty;
-export const loyaltyOn = (product: Product, progress?: Pick<Progress, "loyalty_target_at_creation" | "reward_quantity_at_creation"> | null) =>
+export const loyaltyOn = (product: Product, progress?: Pick<Progress, "purchased_count" | "loyalty_target_at_creation" | "reward_quantity_at_creation" | "loyalty_rule_locked"> | null) =>
   getEffectiveLoyaltyRule(product, progress).enabled;
 
 export function rewardBundlesForQty(
   qty: number,
   product: Product,
-  progress?: Pick<Progress, "loyalty_target_at_creation" | "reward_quantity_at_creation"> | null,
+  progress?: LoyaltyProgressSnapshot | null,
 ) {
   const { target, rewardQty, enabled } = getEffectiveLoyaltyRule(product, progress);
   if (!enabled || qty <= 0 || target <= 1) return 0;
-  return Math.floor(Math.max(0, qty - 1) / target) * rewardQty;
+  const earned = freeRewardsFromPurchases(qty, target, rewardQty);
+  const redeemed = progress?.loyalty_rule_locked === false ? 0 : Number(progress?.redeemed_count ?? 0);
+  return Math.max(0, earned - redeemed);
+}
+
+export function redeemableFreeQuantity(
+  purchased: number,
+  redeemed: number,
+  cartQty: number,
+  product: Product,
+  progress?: LoyaltyProgressSnapshot | null,
+) {
+  const { target, rewardQty, enabled } = getEffectiveLoyaltyRule(product, progress);
+  if (!enabled || cartQty <= 0) return 0;
+
+  return redeemableFreeQuantityForRule(purchased, redeemed, cartQty, target, rewardQty);
 }
 
 export function eligibleRewards(
@@ -107,11 +162,13 @@ export function eligibleRewards(
     .filter((line) => {
       const existing = progressByProduct[line.product.id];
       const prior = existing?.purchased_count ?? 0;
-      const totalProgress = prior + line.qty;
-      return (
-        rewardBundlesForQty(totalProgress, line.product, existing) >
-        rewardBundlesForQty(prior, line.product, existing)
-      );
+      return redeemableFreeQuantity(
+        prior,
+        existing?.redeemed_count ?? 0,
+        line.qty,
+        line.product,
+        existing,
+      ) > 0;
     })
     .map((line) => ({
       product: line.product,
@@ -123,17 +180,20 @@ export function eligibleRewards(
 export function buildOrder(
   cart: CartLine[],
   redeemProductIds: string[],
-  progressByProduct: Record<string, Pick<Progress, "purchased_count" | "loyalty_target_at_creation" | "reward_quantity_at_creation"> | undefined> = {},
+  progressByProduct: Record<string, LoyaltyProgressSnapshot | undefined> = {},
 ) {
   const items = cart
     .filter((line) => line.qty > 0)
     .map((line) => {
       const existing = progressByProduct[line.product.id];
       const prior = existing?.purchased_count ?? 0;
-      const totalProgress = prior + line.qty;
-      const bundleFree =
-        rewardBundlesForQty(totalProgress, line.product, existing) -
-        rewardBundlesForQty(prior, line.product, existing);
+      const bundleFree = redeemableFreeQuantity(
+        prior,
+        existing?.redeemed_count ?? 0,
+        line.qty,
+        line.product,
+        existing,
+      );
       const free = redeemProductIds.includes(line.product.id) ? Math.min(bundleFree, line.qty) : 0;
       const paid = Math.max(0, line.qty - free);
       return {

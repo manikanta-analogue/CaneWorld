@@ -15,7 +15,7 @@ export function PaymentScreen({
 }: {
   cart: CartLine[];
   redeemProductIds: string[];
-  progressByProduct?: Record<string, { purchased_count: number; loyalty_target_at_creation?: number | null; reward_quantity_at_creation?: number | null } | undefined>;
+  progressByProduct?: Record<string, { purchased_count: number; redeemed_count?: number; loyalty_target_at_creation?: number | null; reward_quantity_at_creation?: number | null; loyalty_rule_locked?: boolean } | undefined>;
   currency: string;
   busy: boolean;
   onBack: () => void;

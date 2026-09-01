@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { freeRewardsFromPurchases, redeemableFreeQuantityForRule } from "@/lib/loyalty-calculations";
 
 const tokenSchema = z.string().trim().min(8).max(128);
 const mobileSchema = z.string().trim().regex(/^[0-9]{10}$/);
@@ -303,7 +304,7 @@ export const getCustomerProgress = createServerFn({ method: "POST" })
     const { data: rows, error } = await db
       .from("loyalty_progress")
       .select(
-        "id, customer_id, product_id, purchased_count, redeemed_count, loyalty_target_at_creation, reward_quantity_at_creation",
+        "id, customer_id, product_id, purchased_count, redeemed_count, loyalty_target_at_creation, reward_quantity_at_creation, loyalty_rule_locked",
       )
       .eq("customer_id", data.customerId);
     if (error) throw error;
@@ -321,7 +322,7 @@ export const getCustomerHistory = createServerFn({ method: "POST" })
     const { data: rows, error } = await db
       .from("transactions")
       .select(
-        "id, created_at, total_amount, paid_glasses, free_glasses, payment_method, reference_no, status, branches(name, address), transaction_items(id, product_name, unit_price, paid_quantity, free_quantity, line_total)",
+        "id, created_at, total_amount, paid_glasses, free_glasses, payment_method, reference_no, status, branches(name, address), transaction_items(id, product_name, unit_price, paid_quantity, free_quantity, line_total, loyalty_target_at_purchase, reward_quantity_at_purchase)",
       )
       .eq("customer_id", data.customerId)
       .order("created_at", { ascending: false })
@@ -344,7 +345,7 @@ export const getRewardHistory = createServerFn({ method: "POST" })
     const { data: progressRows, error: progressError } = await db
       .from("loyalty_progress")
       .select(
-        "id, product_id, purchased_count, redeemed_count, loyalty_target_at_creation, reward_quantity_at_creation, created_at, updated_at, products(name, loyalty_target, reward_quantity, loyalty_enabled)",
+        "id, product_id, purchased_count, redeemed_count, loyalty_target_at_creation, reward_quantity_at_creation, loyalty_rule_locked, created_at, updated_at, products(name, loyalty_target, reward_quantity, loyalty_enabled)",
       )
       .eq("customer_id", data.customerId)
       .order("created_at", { ascending: false });
@@ -360,9 +361,11 @@ export const getRewardHistory = createServerFn({ method: "POST" })
         : "N/A",
       purchased_count: row.purchased_count,
       redeemed_count: row.redeemed_count,
-      free_count: row.purchased_count > 0 
-        ? Math.floor((row.purchased_count - 1) / (row.loyalty_target_at_creation || 1)) * (row.reward_quantity_at_creation || 1)
-        : 0,
+      free_count: freeRewardsFromPurchases(
+        Number(row.purchased_count ?? 0),
+        Number(row.loyalty_target_at_creation ?? 1),
+        Number(row.reward_quantity_at_creation ?? 1),
+      ),
       started_at: row.created_at,
       last_updated: row.updated_at,
       loyalty_target_at_creation: row.loyalty_target_at_creation,
@@ -384,7 +387,7 @@ export const getRewardHistory = createServerFn({ method: "POST" })
         const { data: txns, error: txnError } = await db
           .from("transaction_items")
           .select(
-            "transaction_id, transactions(created_at, loyalty_target, loyalty_reward)",
+            "transaction_id, loyalty_target_at_purchase, reward_quantity_at_purchase, transactions(created_at)",
           )
           .eq("product_id", productId)
           .eq("transactions.customer_id", data.customerId)
@@ -404,9 +407,11 @@ export const getRewardHistory = createServerFn({ method: "POST" })
 
           for (const item of txns as any[]) {
             if (item.transactions) {
-              const target = item.transactions.loyalty_target || 1;
-              const reward = item.transactions.loyalty_reward || 1;
-              const ruleStr = `Buy ${target} Get ${reward} Free`;
+              const target = item.loyalty_target_at_purchase;
+              const reward = item.reward_quantity_at_purchase;
+              const ruleStr = target && reward
+                ? `Buy ${target} Get ${reward} Free`
+                : "Historical rule unavailable";
 
               if (ruleStr !== currentRule) {
                 // Rule changed, save the previous one
@@ -582,7 +587,7 @@ export const submitCheckout = createServerFn({ method: "POST" })
 
     const { data: progressRows, error: progressError } = await db
       .from("loyalty_progress")
-      .select("id, product_id, purchased_count, redeemed_count, loyalty_target_at_creation, reward_quantity_at_creation")
+      .select("id, product_id, purchased_count, redeemed_count, loyalty_target_at_creation, reward_quantity_at_creation, loyalty_rule_locked")
       .eq("customer_id", data.customerId);
     if (progressError) throw progressError;
     const progressByProduct = new Map((progressRows ?? []).map((row) => [row.product_id, row]));
@@ -591,11 +596,22 @@ export const submitCheckout = createServerFn({ method: "POST" })
       const product = (products ?? []).find((row) => row.id === line.productId);
       if (!product || !product.is_active) throw new Error("A selected product is unavailable.");
       const existing = progressByProduct.get(product.id);
-      const target = Number(existing?.loyalty_target_at_creation ?? product.loyalty_target ?? 1);
-      const rewardQty = Math.max(1, Number(existing?.reward_quantity_at_creation ?? product.reward_quantity ?? 1));
+      const ruleLocked = existing?.loyalty_rule_locked !== false && (existing?.purchased_count ?? 0) > 0;
+      const target = ruleLocked ? Number(existing?.loyalty_target_at_creation ?? product.loyalty_target ?? 1) : Number(product.loyalty_target ?? 1);
+      const rewardQty = ruleLocked
+        ? Math.max(1, Number(existing?.reward_quantity_at_creation ?? product.reward_quantity ?? 1))
+        : Math.max(1, Number(product.reward_quantity ?? 1));
       const loyaltyOn = product.loyalty_enabled !== false && target > 1 && rewardQty > 0;
       const purchased = existing?.purchased_count ?? 0;
-      const bundleFree = loyaltyOn ? Math.floor((purchased + line.qty) / target) * rewardQty - Math.floor(purchased / target) * rewardQty : 0;
+      const bundleFree = loyaltyOn
+        ? redeemableFreeQuantityForRule(
+            purchased,
+            Number(existing?.redeemed_count ?? 0),
+            line.qty,
+            target,
+            rewardQty,
+          )
+        : 0;
       const free = data.redeemProductIds.includes(product.id) ? Math.min(bundleFree, line.qty) : 0;
       const paid = Math.max(0, line.qty - free);
       return {
@@ -607,6 +623,8 @@ export const submitCheckout = createServerFn({ method: "POST" })
         line_total: paid * Number(product.price),
         loyalty_target: target,
         loyalty_reward: rewardQty,
+        latest_loyalty_target: Number(product.loyalty_target ?? 1),
+        latest_loyalty_reward: Math.max(1, Number(product.reward_quantity ?? 1)),
       };
     });
 
@@ -641,16 +659,32 @@ export const submitCheckout = createServerFn({ method: "POST" })
         paid_quantity: item.paid_quantity,
         free_quantity: item.free_quantity,
         line_total: item.line_total,
+        loyalty_target_at_purchase: item.loyalty_target,
+        reward_quantity_at_purchase: item.loyalty_reward,
       })),
     );
     if (itemsError) throw itemsError;
 
     for (const item of items) {
       const current = progressByProduct.get(item.product_id);
-      const ruleTarget = Number(current?.loyalty_target_at_creation ?? item.loyalty_target ?? 1);
-      const ruleReward = Math.max(1, Number(current?.reward_quantity_at_creation ?? item.loyalty_reward ?? 1));
-      const nextPurchased = (current?.purchased_count ?? 0) + item.paid_quantity;
-      const nextRedeemed = (current?.redeemed_count ?? 0) + item.free_quantity;
+      const ruleLocked = current?.loyalty_rule_locked !== false && (current?.purchased_count ?? 0) > 0;
+      const ruleTarget = ruleLocked
+        ? Number(current?.loyalty_target_at_creation ?? item.loyalty_target ?? 1)
+        : Number(item.loyalty_target ?? 1);
+      const ruleReward = ruleLocked
+        ? Math.max(1, Number(current?.reward_quantity_at_creation ?? item.loyalty_reward ?? 1))
+        : Math.max(1, Number(item.loyalty_reward ?? 1));
+      const latestRuleTarget = item.free_quantity > 0
+        ? Number(item.latest_loyalty_target ?? ruleTarget)
+        : ruleTarget;
+      const latestRuleReward = item.free_quantity > 0
+        ? Math.max(1, Number(item.latest_loyalty_reward ?? ruleReward))
+        : ruleReward;
+      const nextPurchased = item.free_quantity > 0
+        ? item.paid_quantity
+        : (current?.purchased_count ?? 0) + item.paid_quantity;
+      const startsNewCycle = item.free_quantity > 0;
+      const nextRedeemed = startsNewCycle ? 0 : (current?.redeemed_count ?? 0);
 
       if (current) {
         const { error } = await db
@@ -658,8 +692,12 @@ export const submitCheckout = createServerFn({ method: "POST" })
           .update({
             purchased_count: nextPurchased,
             redeemed_count: nextRedeemed,
-            loyalty_target_at_creation: current.loyalty_target_at_creation ?? ruleTarget,
-            reward_quantity_at_creation: current.reward_quantity_at_creation ?? ruleReward,
+            loyalty_target_at_creation: latestRuleTarget,
+            reward_quantity_at_creation: latestRuleReward,
+            // A paid item starts (and locks) a new cycle. A just-redeemed,
+            // zero-purchase cycle deliberately remains unlocked so it follows
+            // any subsequently edited live product rule.
+            loyalty_rule_locked: nextPurchased > 0,
             updated_at: new Date().toISOString(),
           })
           .eq("id", current.id);
@@ -670,8 +708,9 @@ export const submitCheckout = createServerFn({ method: "POST" })
           product_id: item.product_id,
           purchased_count: nextPurchased,
           redeemed_count: nextRedeemed,
-          loyalty_target_at_creation: ruleTarget,
-          reward_quantity_at_creation: ruleReward,
+          loyalty_target_at_creation: latestRuleTarget,
+          reward_quantity_at_creation: latestRuleReward,
+          loyalty_rule_locked: nextPurchased > 0,
         });
         if (error) throw error;
       }

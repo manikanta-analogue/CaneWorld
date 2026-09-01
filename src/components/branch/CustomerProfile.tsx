@@ -9,10 +9,9 @@ import {
 } from "@/lib/branch.functions";
 import {
   formatMoney,
-  getEffectiveLoyaltyRule,
-  isEligible,
+  getDisplayLoyaltyRule,
   loyaltyOn,
-  rewardQuantity,
+  rewardBundlesForQty,
   type Customer,
   type Product,
   type Progress,
@@ -48,6 +47,8 @@ type HistoryRow = {
     paid_quantity: number;
     free_quantity: number;
     line_total: number;
+    loyalty_target_at_purchase: number | null;
+    reward_quantity_at_purchase: number | null;
   }[];
 };
 
@@ -475,6 +476,32 @@ export function CustomerProfile({
         row.transaction_items.some((item) => item.product_name === selectedProduct.name),
       )
     : [];
+  const selectedRuleTimeline = Array.from(
+    selectedProductPurchases
+      .flatMap((row) =>
+        row.transaction_items
+          .filter((item) => item.product_name === selectedProduct?.name)
+          .map((item) => ({
+            date: row.created_at,
+            rule:
+              item.loyalty_target_at_purchase && item.reward_quantity_at_purchase
+                ? `Buy ${item.loyalty_target_at_purchase} Get ${item.reward_quantity_at_purchase} Free`
+                : null,
+          })),
+      )
+      .reduce((timeline, entry) => {
+        const key = entry.rule ?? "legacy";
+        const current = timeline.get(key);
+        if (current) {
+          current.count += 1;
+          current.lastDate = entry.date;
+        } else {
+          timeline.set(key, { ...entry, count: 1, lastDate: entry.date });
+        }
+        return timeline;
+      }, new Map<string, { rule: string | null; date: string; lastDate: string; count: number }>())
+      .values(),
+  );
 
   return (
     <div className="space-y-4 px-4 pb-32 pt-4 sm:px-6">
@@ -492,14 +519,13 @@ export function CustomerProfile({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {loyaltyProducts.map((product) => {
           const progress = byProduct[product.id];
-          const done = progress?.purchased_count ?? 0;
           const redeemed = progress?.redeemed_count ?? 0;
-          const rule = getEffectiveLoyaltyRule(product, progress);
-          const reward = rewardQuantity(product, progress);
-          const ready = isEligible(done, rule.target, reward, true);
-          const purchases = (history.data ?? []).filter((row) =>
-            row.transaction_items.some((item) => item.product_name === product.name),
-          );
+          const rule = getDisplayLoyaltyRule(product, progress);
+          const reward = rule.rewardQty;
+          const purchasedInCycle = progress?.purchased_count ?? 0;
+          const ready = rewardBundlesForQty(progress?.purchased_count ?? 0, product, progress) > 0;
+          // A completed Buy-X card stays visibly complete while its reward is waiting.
+          const done = ready ? rule.target : Math.min(rule.target, purchasedInCycle % rule.target);
 
           return (
             <article
@@ -523,7 +549,7 @@ export function CustomerProfile({
                       ready ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
                     }`}
                   >
-                    {done} / {rule.target}
+                    {ready ? "Reward ready" : `${done} / ${rule.target}`}
                   </span>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden />
                 </div>
@@ -536,39 +562,30 @@ export function CustomerProfile({
                     className={`h-6 w-6 rounded-full border text-center text-[10px] leading-6 ${
                       index < done
                         ? "border-primary bg-primary text-primary-foreground"
-                        : index >= rule.target - reward
-                          ? "border-primary text-primary"
-                          : "border-border text-muted-foreground"
+                        : "border-border text-muted-foreground"
                     }`}
                   >
-                    {index >= rule.target - reward ? "★" : index + 1}
+                    {index + 1}
                   </span>
                 ))}
               </div>
-              <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+              <div className="mt-3 text-[11px] text-muted-foreground">
                 <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Gift className="h-3.5 w-3.5 text-primary" aria-hidden />
                   {ready
-                    ? `Free ${product.name} ready to redeem`
+                    ? `${reward} free ${product.name} ready to redeem`
                     : `Buy ${Math.max(0, rule.target - done)} more & get ${reward} FREE`}
                   {redeemed > 0 ? ` · ${redeemed} redeemed` : ""}
                 </p>
-                <span className="font-semibold text-foreground">{purchases.length} txn</span>
               </div>
 
               <div className="mt-3 rounded-xl bg-secondary/40 p-2">
-                <p className="text-[10px] font-semibold text-muted-foreground">Reward History</p>
-                <div className="mt-1.5 grid grid-cols-4 gap-1 text-[10px]">
+                <p className="text-[10px] font-semibold text-muted-foreground">Current reward cycle</p>
+                <div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px]">
                   <div className="text-center">
-                    <p className="font-semibold">{progress?.purchased_count ?? 0}</p>
-                    <p className="text-muted-foreground">Purchased</p>
+                    <p className="font-semibold">{purchasedInCycle}</p>
+                    <p className="text-muted-foreground">Paid in cycle</p>
                   </div>
-                  {/* <div className="text-center">
-                    <p className="font-semibold text-primary">
-                      {Math.floor(((progress?.purchased_count ?? 0) - 1) / rule.target) * reward}
-                    </p>
-                    <p className="text-muted-foreground">Earned</p>
-                  </div> */}
                   <div className="text-center">
                     <p className="font-semibold">{progress?.redeemed_count ?? 0}</p>
                     <p className="text-muted-foreground">Redeemed</p>
@@ -592,34 +609,30 @@ export function CustomerProfile({
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Show all rule changes for this product */}
             {selectedProduct && (
               <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                <p className="mb-2 text-xs font-semibold text-muted-foreground">Rule History</p>
+                <p className="mb-1 text-xs font-semibold text-muted-foreground">Rule history</p>
+                <p className="mb-3 text-[11px] text-muted-foreground">
+                  Rules are grouped here; each sale is listed below.
+                </p>
                 <div className="space-y-1.5">
-                  {selectedProductPurchases.length > 0 ? (
-                    <div className="space-y-1">
-                      {selectedProductPurchases.map((row, idx) => {
-                        const matchingItems = row.transaction_items.filter(
-                          (item) => item.product_name === selectedProduct?.name,
-                        );
-                        // Extract rule info from transaction if available
-                        // This is a simplified version - we show the basic info
-                        const prevDate = idx > 0 ? new Date(selectedProductPurchases[idx - 1].created_at) : null;
-                        const currDate = new Date(row.created_at);
-                        
-                        return idx === 0 ? (
-                          <div key={`rule-${idx}`} className="rounded bg-background/50 p-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold text-primary">
-                                {selectedProduct?.loyalty_target} Get {selectedProduct?.reward_quantity || 1} Free
-                              </span>
-                              <span className="text-muted-foreground">From {currDate.toLocaleDateString("en-IN")}</span>
-                            </div>
-                          </div>
-                        ) : null;
-                      })}
-                    </div>
+                  {selectedRuleTimeline.length > 0 ? (
+                    selectedRuleTimeline.map((entry) =>
+                      entry.rule ? (
+                        <div key={entry.rule} className="rounded bg-background/50 p-2 text-xs">
+                          <p className="font-semibold text-primary">{entry.rule}</p>
+                          <p className="mt-0.5 text-muted-foreground">
+                            Used in {entry.count} sale{entry.count === 1 ? "" : "s"} · first used{" "}
+                            {new Date(entry.date).toLocaleDateString("en-IN")}
+                          </p>
+                        </div>
+                      ) : (
+                        <div key="legacy" className="rounded border border-border bg-background/50 p-2 text-[11px] text-muted-foreground">
+                          {entry.count} older sale{entry.count === 1 ? "" : "s"} do not have a saved reward rule.
+                          Paid and free quantities below are still accurate.
+                        </div>
+                      ),
+                    )
                   ) : (
                     <p className="text-xs text-muted-foreground">No purchases yet</p>
                   )}
@@ -665,6 +678,11 @@ export function CustomerProfile({
                             <p className="truncate font-semibold">{item.product_name}</p>
                             <p className="text-xs text-muted-foreground">
                               {item.paid_quantity} paid · {item.free_quantity} free · {formatMoney(Number(item.unit_price), currency)} each
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {item.loyalty_target_at_purchase && item.reward_quantity_at_purchase
+                                ? `Rule used: Buy ${item.loyalty_target_at_purchase} Get ${item.reward_quantity_at_purchase} Free`
+                                : "Rule not recorded for this older sale"}
                             </p>
                           </div>
                           <span className="shrink-0 font-bold">{formatMoney(Number(item.line_total), currency)}</span>

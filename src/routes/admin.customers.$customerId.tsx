@@ -37,6 +37,8 @@ type CustomerTxnItem = {
   free_quantity: number;
   line_total: number;
   product_id: string | null;
+  loyalty_target_at_purchase: number | null;
+  reward_quantity_at_purchase: number | null;
   category_name?: string | null;
 };
 
@@ -57,7 +59,7 @@ async function loadCustomerDetail(customerId: string) {
     supabase
       .from("transactions")
       .select(
-        "id, created_at, total_amount, payment_method, reference_no, branch_id, branches(name), transaction_items(product_id, product_name, paid_quantity, free_quantity, line_total)",
+        "id, created_at, total_amount, payment_method, reference_no, branch_id, branches(name), transaction_items(product_id, product_name, paid_quantity, free_quantity, line_total, loyalty_target_at_purchase, reward_quantity_at_purchase)",
       )
       .eq("customer_id", customerId)
       .order("created_at", { ascending: false }),
@@ -107,15 +109,20 @@ async function loadRewardHistory(customerId: string) {
   // Get all transactions to build rule change timeline
   const { data: txns, error: txnError } = await supabase
     .from("transaction_items")
-    .select("product_id, transaction_id, products(name, loyalty_target, reward_quantity), transactions(created_at, customer_id)")
+    .select("product_id, transaction_id, paid_quantity, free_quantity, loyalty_target_at_purchase, reward_quantity_at_purchase, products(name), transactions!inner(created_at, customer_id)")
     .eq("transactions.customer_id", customerId);
 
   if (txnError) throw txnError;
 
   // Sort transactions by created_at in JavaScript (PostgREST doesn't support ordering by nested relations)
-  const sortedTxns = ((txns ?? []) as any[]).sort((a, b) => {
-    const dateA = a.transactions?.created_at || "";
-    const dateB = b.transactions?.created_at || "";
+  const sortedTxns = ((txns ?? []) as any[])
+    .map((item) => ({
+      ...item,
+      transaction: Array.isArray(item.transactions) ? item.transactions[0] : item.transactions,
+    }))
+    .sort((a, b) => {
+    const dateA = a.transaction?.created_at || "";
+    const dateB = b.transaction?.created_at || "";
     return new Date(dateA).getTime() - new Date(dateB).getTime();
   });
 
@@ -138,6 +145,8 @@ async function loadRewardHistory(customerId: string) {
     redeemed_count: row.redeemed_count,
     loyalty_target_at_creation: row.loyalty_target_at_creation,
     reward_quantity_at_creation: row.reward_quantity_at_creation,
+      loyalty_rule_locked: row.loyalty_rule_locked,
+    free_count: Number(row.redeemed_count ?? 0),
     created_at: row.created_at,
     updated_at: row.updated_at,
   }));
@@ -171,10 +180,12 @@ async function loadRewardHistory(customerId: string) {
     let ruleCount = 0;
 
     for (const item of transactions) {
-      if (item.transactions && item.products) {
-        const target = item.products.loyalty_target || 1;
-        const reward = item.products.reward_quantity || 1;
-        const ruleStr = `Buy ${target} Get ${reward} Free`;
+      if (item.transaction) {
+        const target = item.loyalty_target_at_purchase;
+        const reward = item.reward_quantity_at_purchase;
+        const ruleStr = target && reward
+          ? `Buy ${target} Get ${reward} Free`
+          : "Historical rule unavailable";
 
         if (ruleStr !== currentRule) {
           // Rule changed, save the previous one
@@ -182,12 +193,12 @@ async function loadRewardHistory(customerId: string) {
             ruleTimeline.push({
               rule: currentRule,
               effective_from: ruleStart,
-              effective_to: item.transactions.created_at,
+                effective_to: item.transaction.created_at,
               transaction_count: ruleCount,
             });
           }
           currentRule = ruleStr;
-          ruleStart = item.transactions.created_at;
+          ruleStart = item.transaction.created_at;
           ruleCount = 1;
         } else {
           ruleCount++;
@@ -211,6 +222,17 @@ async function loadRewardHistory(customerId: string) {
 
   return {
     rewardHistory,
+    rewardEvents: sortedTxns.map((item) => ({
+      product_id: item.product_id,
+      product_name: item.products?.name ?? "Unknown",
+      date: item.transaction?.created_at,
+      rule: item.loyalty_target_at_purchase && item.reward_quantity_at_purchase
+        ? `Buy ${item.loyalty_target_at_purchase} Get ${item.reward_quantity_at_purchase} Free`
+        : "Legacy sale — rule not recorded",
+      ruleAvailable: Boolean(item.loyalty_target_at_purchase && item.reward_quantity_at_purchase),
+      purchased: Number(item.paid_quantity ?? 0),
+      free: Number(item.free_quantity ?? 0),
+    })),
     ruleChanges: Object.fromEntries(ruleChangesByProduct),
   };
 }
@@ -232,6 +254,7 @@ function CustomerDetailPage() {
   const customer = data?.customer;
   const txns = data?.txns ?? [];
   const rewardHistory = rewardData?.rewardHistory ?? [];
+  const rewardEvents = rewardData?.rewardEvents ?? [];
   const ruleChanges = rewardData?.ruleChanges ?? {};
 
   const branchOptions = useMemo(() => {
@@ -441,7 +464,12 @@ function CustomerDetailPage() {
         <CardContent className="space-y-4 p-4">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" aria-hidden />
-            <h2 className="text-lg font-bold">Reward History & Rule Changes</h2>
+            <div>
+              <h2 className="text-lg font-bold">Reward history</h2>
+              <p className="text-xs text-muted-foreground">
+                Rules shown here are the exact rules saved when each sale was completed.
+              </p>
+            </div>
           </div>
 
           {rewardHistory.length === 0 ? (
@@ -452,38 +480,62 @@ function CustomerDetailPage() {
                 <div key={item.product_id} className="space-y-3 rounded-2xl border border-border p-4">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold">{item.product_name}</h3>
-                    <Badge variant="secondary">
-                      {item.purchased_count} purchased · {Math.floor((item.purchased_count - 1) / (item.loyalty_target_at_creation || 1)) * (item.reward_quantity_at_creation || 1)} free
-                    </Badge>
+                    <Badge variant="secondary">Current cycle: {item.purchased_count} paid</Badge>
                   </div>
 
                   <div className="rounded-lg bg-secondary/40 p-3">
-                    <p className="mb-2 text-xs font-semibold text-muted-foreground">Reward History</p>
-                    <div className="space-y-1">
-                      <div className="grid grid-cols-4 gap-2 text-xs font-medium text-muted-foreground">
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-foreground">Sales using this reward</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Paid is what the customer bought; free is what was redeemed in that sale.
+                      </p>
+                    </div>
+                    {rewardEvents.some(
+                      (event) => event.product_id === item.product_id && !event.ruleAvailable,
+                    ) && (
+                      <p className="mb-3 rounded-lg border border-border bg-background/60 p-2 text-[11px] text-muted-foreground">
+                        Some older sales predate loyalty-rule snapshots. Their paid and free quantities are accurate,
+                        but the reward rule was not stored at the time of sale.
+                      </p>
+                    )}
+                    <div className="space-y-1 overflow-x-auto">
+                      <div className="grid min-w-[500px] grid-cols-[110px_minmax(180px,1fr)_70px_70px] gap-2 text-xs font-medium text-muted-foreground">
                         <span>Date</span>
-                        <span>Rule</span>
-                        <span className="text-right">Purchased</span>
+                        <span>Reward rule at sale</span>
+                        <span className="text-right">Paid</span>
                         <span className="text-right">Free</span>
                       </div>
-                      <div className="grid grid-cols-4 gap-2 border-t border-border pt-2 text-xs">
-                        <span>{new Date(item.created_at).toLocaleDateString("en-IN")}</span>
-                        <span className="font-semibold text-primary">
-                          Buy {item.loyalty_target_at_creation || 1} Get {item.reward_quantity_at_creation || 1} Free
-                        </span>
-                        <span className="text-right">{item.purchased_count}</span>
-                        <span className="text-right font-bold text-primary">
-                          {Math.floor((item.purchased_count - 1) / (item.loyalty_target_at_creation || 1)) * (item.reward_quantity_at_creation || 1)}
-                        </span>
-                      </div>
+                      {rewardEvents
+                        .filter((event) => event.product_id === item.product_id)
+                        .map((event, eventIndex) => (
+                          <div key={`${event.product_id}-${event.date}-${eventIndex}`} className="grid min-w-[500px] grid-cols-[110px_minmax(180px,1fr)_70px_70px] gap-2 border-t border-border pt-2 text-xs">
+                            <span>{event.date ? new Date(event.date).toLocaleDateString("en-IN") : "-"}</span>
+                            <span
+                              className={
+                                event.ruleAvailable
+                                  ? "font-semibold text-primary"
+                                  : "font-medium text-muted-foreground"
+                              }
+                            >
+                              {event.rule}
+                            </span>
+                            <span className="text-right">{event.purchased}</span>
+                            <span className="text-right font-bold text-primary">{event.free}</span>
+                          </div>
+                        ))}
                     </div>
                   </div>
 
-                  {ruleChanges[item.product_id] && ruleChanges[item.product_id].length > 0 && (
+                  {(ruleChanges[item.product_id]?.length ?? 0) > 0 && (
                     <div className="rounded-lg bg-secondary/40 p-3">
-                      <p className="mb-3 text-xs font-semibold text-muted-foreground">Rule History (All Changes)</p>
+                      <div className="mb-3">
+                        <p className="text-xs font-semibold text-foreground">Rule changes seen in sales</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          A new row appears when a completed sale used a different reward rule.
+                        </p>
+                      </div>
                       <div className="space-y-2">
-                        {ruleChanges[item.product_id].map(
+                        {(ruleChanges[item.product_id] ?? []).map(
                           (
                             change: {
                               rule: string;
@@ -517,7 +569,7 @@ function CustomerDetailPage() {
                                   </div>
                                 </div>
                                 <span className="whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                                  {change.transaction_count} txn
+                                  {change.transaction_count} sale{change.transaction_count === 1 ? "" : "s"}
                                 </span>
                               </div>
                             </div>

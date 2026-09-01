@@ -3,10 +3,9 @@ import { Search, Minus, Plus, Sparkles, ShoppingCart, Leaf, ChevronLeft, Chevron
 import {
   buildOrder,
   formatMoney,
-  getEffectiveLoyaltyRule,
-  isEligible,
+  getDisplayLoyaltyRule,
   loyaltyOn,
-  rewardQuantity,
+  rewardBundlesForQty,
   type CartLine,
   type Product,
   type Progress,
@@ -114,8 +113,8 @@ export function PosScreen({
       .filter((product) => loyaltyOn(product, progressByProduct[product.id]))
       .map((product) => {
         const progress = progressByProduct[product.id];
-        const rule = getEffectiveLoyaltyRule(product, progress);
-        const done = progress?.purchased_count ?? 0;
+        const rule = getDisplayLoyaltyRule(product, progress);
+        const done = (progress?.purchased_count ?? 0) % rule.target;
         return {
           product,
           done,
@@ -173,7 +172,7 @@ export function PosScreen({
                 className="absolute inset-0 h-full w-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/25 to-transparent" />
-              <div className="relative flex h-full flex-col justify-end p-5">
+              {/* <div className="relative flex h-full flex-col justify-end p-5">
                 <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-primary-foreground">
                   <Leaf className="h-3.5 w-3.5" aria-hidden /> Fresh today
                 </span>
@@ -188,7 +187,7 @@ export function PosScreen({
                 >
                   {banner.cta}
                 </Button>
-              </div>
+              </div> */}
             </div>
           ))}
         </div>
@@ -224,7 +223,7 @@ export function PosScreen({
         </div>
       </section>
 
-      {nextReward ? (
+      {/* {nextReward ? (
         <section className="rounded-3xl border border-border bg-card p-4 shadow-card">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
             <div className="min-w-0">
@@ -241,7 +240,7 @@ export function PosScreen({
           </div>
           <ProgressBar value={(nextReward.done / nextReward.target) * 100} className="mt-3 h-2" />
         </section>
-      ) : null}
+      ) : null} */}
 
       {categories.length > 0 ? (
         <section id="menu-start" className="scroll-mt-24 space-y-3">
@@ -314,11 +313,11 @@ export function PosScreen({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {group.items.map((product) => {
               const progress = progressByProduct[product.id];
-              const done = progress?.purchased_count ?? 0;
-              const rule = getEffectiveLoyaltyRule(product, progress);
-              const hasLoyalty = loyaltyOn(product, progress);
-              const reward = rewardQuantity(product, progress);
-              const eligible = isEligible(done, rule.target, reward, hasLoyalty);
+              const rule = getDisplayLoyaltyRule(product, progress);
+              const hasLoyalty = rule.enabled;
+              const reward = rule.rewardQty;
+              const done = (progress?.purchased_count ?? 0) % rule.target;
+              const eligible = hasLoyalty && rewardBundlesForQty(progress?.purchased_count ?? 0, product, progress) > 0;
               const qty = quantities[product.id] ?? 0;
               const art = categoryArt(product.category_name);
               return (
