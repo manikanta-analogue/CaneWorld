@@ -331,6 +331,17 @@ export const getCustomerHistory = createServerFn({ method: "POST" })
     return rows ?? [];
   });
 
+/** Public legal copy is read through the server; staff editing remains restricted by RLS. */
+export const getPublicPolicies = createServerFn({ method: "GET" }).handler(async () => {
+  const db = await admin();
+  const { data, error } = await db
+    .from("legal_policies")
+    .select("policy_type, title, content, updated_at")
+    .order("policy_type");
+  if (error) throw error;
+  return data ?? [];
+});
+
 /** Fetch comprehensive reward history with product-specific loyalty progression and all historical rules. */
 export const getRewardHistory = createServerFn({ method: "POST" })
   .inputValidator((input: { token: string; customerId: string }) => ({

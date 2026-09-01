@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   Receipt,
+  ScrollText,
   Settings,
   Store,
   Users,
@@ -61,6 +62,7 @@ const items = [
   { title: "Customers", url: "/admin/customers", icon: Users },
   { title: "Transactions", url: "/admin/transactions", icon: Receipt },
   { title: "Reports", url: "/admin/reports", icon: BarChart3 },
+  { title: "Policies", url: "/admin/policies", icon: ScrollText },
   { title: "Settings", url: "/admin/settings", icon: Settings },
   { title: "Change password", url: "/admin/change-password", icon: KeyRound },
 ];

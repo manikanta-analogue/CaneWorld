@@ -5,6 +5,7 @@ import { ArrowRight, Camera, Gift, LogOut, Pencil, ReceiptText, User } from "luc
 import {
   getCustomerHistory,
   getCustomerProfile,
+  getPublicPolicies,
   updateCustomerProfile,
 } from "@/lib/branch.functions";
 import {
@@ -58,6 +59,8 @@ type ProfileRow = {
   mobile: string;
   image_signed_url: string | null;
 };
+
+type PolicyRow = { policy_type: string; title: string; content: string; updated_at: string };
 
 const RANGES = [
   { key: "all", label: "All" },
@@ -134,6 +137,11 @@ export function CustomerProfile({
       (await getCustomerProfile({
         data: { token, customerId: customer.id },
       })) as unknown as ProfileRow | null,
+  });
+  const policies = useQuery({
+    queryKey: ["public-policies"],
+    queryFn: async () => (await getPublicPolicies()) as unknown as PolicyRow[],
+    enabled: view === "account",
   });
 
   const save = useMutation({
@@ -309,6 +317,12 @@ export function CustomerProfile({
                     {row.payment_method === "cash" ? "Cash" : "Online"}
                     {row.free_glasses > 0 ? ` · ${row.free_glasses} free` : ""}
                   </p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    Paid for: {row.transaction_items
+                      .filter((item) => item.paid_quantity > 0)
+                      .map((item) => `${item.product_name} ×${item.paid_quantity}`)
+                      .join(", ") || "No paid items"}
+                  </p>
                 </div>
                 <span className="shrink-0 text-sm font-bold">
                   {formatMoney(Number(row.total_amount), currency)}
@@ -321,6 +335,22 @@ export function CustomerProfile({
             {!history.isLoading && filtered.length === 0 ? (
               <p className="text-sm text-muted-foreground">No transactions for this filter.</p>
             ) : null}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-border bg-card p-4 shadow-card">
+          <h2 className="text-base font-extrabold">Policies</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Terms, privacy, cancellation and refund information.</p>
+          <div className="mt-3 space-y-2">
+            {(policies.data ?? []).map((policy) => (
+              <details key={policy.policy_type} className="rounded-xl bg-secondary/50 p-3">
+                <summary className="cursor-pointer text-sm font-semibold">{policy.title}</summary>
+                <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
+                  {policy.content.trim() || "This policy has not been published yet."}
+                </p>
+              </details>
+            ))}
+            {policies.isLoading ? <p className="text-xs text-muted-foreground">Loading policies…</p> : null}
           </div>
         </section>
 

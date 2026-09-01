@@ -337,7 +337,9 @@ function MenuPage() {
                           </div>
                         )}
                         <div className="min-w-32 flex-1">
-                          <p className="truncate text-sm font-semibold">{product.name}</p>
+                          <p className="truncate text-sm font-semibold">
+                            {product.name} <span className="font-normal text-muted-foreground">· {product.volume_ml} ml</span>
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {formatMoney(Number(product.price))} · {loyaltyLabel(product)}
                           </p>
@@ -398,7 +400,9 @@ function MenuPage() {
                   className="flex items-center justify-between gap-3 rounded-xl border border-border p-3"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{product.name}</p>
+                    <p className="truncate text-sm font-semibold">
+                      {product.name} <span className="font-normal text-muted-foreground">· {product.volume_ml} ml</span>
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {formatMoney(Number(product.price))} · {loyaltyLabel(product)}
                     </p>

@@ -149,6 +149,27 @@ export type Database = {
         }
         Relationships: []
       }
+      legal_policies: {
+        Row: {
+          content: string
+          policy_type: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string
+          policy_type: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          policy_type?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       loyalty_progress: {
         Row: {
           created_at: string

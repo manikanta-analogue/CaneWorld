@@ -201,6 +201,9 @@ function Dashboard() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            {access.isSuperAdmin && (
+              <StatCard label="Total Branches" value={String(data.totalBranches)} icon={Store} to="/admin/branches" />
+            )}
             <StatCard label="Today Sales" value={formatMoney(data.todaysSales)} icon={IndianRupee} to="/admin/transactions" />
             <StatCard label="Sales in range" value={formatMoney(data.sales)} icon={IndianRupee} to="/admin/transactions" />
             <StatCard label="Transactions" value={String(data.transactions)} icon={Receipt} to="/admin/transactions" />

@@ -478,9 +478,35 @@ function CustomerDetailPage() {
             <div className="space-y-4">
               {rewardHistory.map((item) => (
                 <div key={item.product_id} className="space-y-3 rounded-2xl border border-border p-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold">{item.product_name}</h3>
-                    <Badge variant="secondary">Current cycle: {item.purchased_count} paid</Badge>
+                  {(() => {
+                    const target = Number(item.loyalty_target_at_creation ?? 0);
+                    const rewardQty = Number(item.reward_quantity_at_creation ?? 0);
+                    const paidInCycle = Number(item.purchased_count ?? 0);
+                    const rewardReady = target > 1 && rewardQty > 0 && paidInCycle >= target;
+                    return (
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-bold">{item.product_name}</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        Current cycle starts after the last reward redemption.
+                      </p>
+                    </div>
+                    <Badge variant={rewardReady ? "default" : "secondary"}>
+                      {rewardReady ? `${rewardQty} free ready` : `${paidInCycle} of ${target || "–"} paid`}
+                    </Badge>
+                  </div>
+                    );
+                  })()}
+
+                  <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Active rule</p>
+                      <p className="mt-0.5 font-semibold text-foreground">
+                        {item.loyalty_target_at_creation && item.reward_quantity_at_creation
+                          ? `Buy ${item.loyalty_target_at_creation} · Get ${item.reward_quantity_at_creation} free`
+                          : "No active loyalty rule"}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="rounded-lg bg-secondary/40 p-3">

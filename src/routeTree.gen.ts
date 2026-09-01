@@ -26,6 +26,7 @@ import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminChangePasswordRouteImport } from './routes/admin.change-password'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminMenuRouteImport } from './routes/admin.menu'
+import { Route as AdminPoliciesRouteImport } from './routes/admin.policies'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminQrRouteImport } from './routes/admin.qr'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
@@ -119,6 +120,11 @@ const AdminMenuRoute = AdminMenuRouteImport.update({
   path: '/menu',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminPoliciesRoute = AdminPoliciesRouteImport.update({
+  id: '/policies',
+  path: '/policies',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminProductsRoute = AdminProductsRouteImport.update({
   id: '/products',
   path: '/products',
@@ -173,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/admin/change-password': typeof AdminChangePasswordRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/menu': typeof AdminMenuRoute
+  '/admin/policies': typeof AdminPoliciesRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/qr': typeof AdminQrRoute
   '/admin/reports': typeof AdminReportsRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/admin/change-password': typeof AdminChangePasswordRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/menu': typeof AdminMenuRoute
+  '/admin/policies': typeof AdminPoliciesRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/qr': typeof AdminQrRoute
   '/admin/reports': typeof AdminReportsRoute
@@ -225,6 +233,7 @@ export interface FileRoutesById {
   '/admin/change-password': typeof AdminChangePasswordRoute
   '/admin/customers': typeof AdminCustomersRouteWithChildren
   '/admin/menu': typeof AdminMenuRoute
+  '/admin/policies': typeof AdminPoliciesRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/qr': typeof AdminQrRoute
   '/admin/reports': typeof AdminReportsRoute
@@ -253,6 +262,7 @@ export interface FileRouteTypes {
     | '/admin/change-password'
     | '/admin/customers'
     | '/admin/menu'
+    | '/admin/policies'
     | '/admin/products'
     | '/admin/qr'
     | '/admin/reports'
@@ -278,6 +288,7 @@ export interface FileRouteTypes {
     | '/admin/change-password'
     | '/admin/customers'
     | '/admin/menu'
+    | '/admin/policies'
     | '/admin/products'
     | '/admin/qr'
     | '/admin/reports'
@@ -304,6 +315,7 @@ export interface FileRouteTypes {
     | '/admin/change-password'
     | '/admin/customers'
     | '/admin/menu'
+    | '/admin/policies'
     | '/admin/products'
     | '/admin/qr'
     | '/admin/reports'
@@ -448,6 +460,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminMenuRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/policies': {
+      id: '/admin/policies'
+      path: '/policies'
+      fullPath: '/admin/policies'
+      preLoaderRoute: typeof AdminPoliciesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/products': {
       id: '/admin/products'
       path: '/products'
@@ -520,6 +539,7 @@ interface AdminRouteChildren {
   AdminChangePasswordRoute: typeof AdminChangePasswordRoute
   AdminCustomersRoute: typeof AdminCustomersRouteWithChildren
   AdminMenuRoute: typeof AdminMenuRoute
+  AdminPoliciesRoute: typeof AdminPoliciesRoute
   AdminProductsRoute: typeof AdminProductsRoute
   AdminQrRoute: typeof AdminQrRoute
   AdminReportsRoute: typeof AdminReportsRoute
@@ -536,6 +556,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminChangePasswordRoute: AdminChangePasswordRoute,
   AdminCustomersRoute: AdminCustomersRouteWithChildren,
   AdminMenuRoute: AdminMenuRoute,
+  AdminPoliciesRoute: AdminPoliciesRoute,
   AdminProductsRoute: AdminProductsRoute,
   AdminQrRoute: AdminQrRoute,
   AdminReportsRoute: AdminReportsRoute,
