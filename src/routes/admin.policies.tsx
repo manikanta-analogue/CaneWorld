@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useStaffAccess } from "@/hooks/useStaffAccess";
 
 export const Route = createFileRoute("/admin/policies")({ component: PoliciesPage });
 
@@ -25,6 +26,7 @@ async function loadPolicies() {
 
 function PoliciesPage() {
   const queryClient = useQueryClient();
+  const { access } = useStaffAccess();
   const { data = [], isLoading } = useQuery({ queryKey: ["legal-policies"], queryFn: loadPolicies });
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
@@ -56,7 +58,11 @@ function PoliciesPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight">Policies</h1>
-        <p className="text-sm text-muted-foreground">Manage the legal information shown in every customer account.</p>
+        <p className="text-sm text-muted-foreground">
+          {access.isSuperAdmin
+            ? "Manage the legal information shown in every customer account."
+            : "Read-only legal information shown in every customer account."}
+        </p>
       </div>
       {isLoading ? <p className="text-sm text-muted-foreground">Loading policies…</p> : null}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -73,10 +79,13 @@ function PoliciesPage() {
                 onChange={(event) => setDrafts((current) => ({ ...current, [policy.policy_type]: event.target.value }))}
                 placeholder={`Write the ${policy.title.toLowerCase()} here…`}
                 className="min-h-48 resize-y"
+                readOnly={!access.isSuperAdmin}
               />
-              <Button onClick={() => save.mutate(policy)} disabled={save.isPending}>
-                {save.isPending ? "Saving…" : "Save policy"}
-              </Button>
+              {access.isSuperAdmin && (
+                <Button onClick={() => save.mutate(policy)} disabled={save.isPending}>
+                  {save.isPending ? "Saving…" : "Save policy"}
+                </Button>
+              )}
             </CardContent>
           </Card>
         ))}

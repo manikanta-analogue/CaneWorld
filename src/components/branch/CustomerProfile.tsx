@@ -50,6 +50,7 @@ type HistoryRow = {
     line_total: number;
     loyalty_target_at_purchase: number | null;
     reward_quantity_at_purchase: number | null;
+    products: { volume_ml: number } | null;
   }[];
 };
 
@@ -320,7 +321,10 @@ export function CustomerProfile({
                   <p className="mt-1 truncate text-xs text-muted-foreground">
                     Paid for: {row.transaction_items
                       .filter((item) => item.paid_quantity > 0)
-                      .map((item) => `${item.product_name} ×${item.paid_quantity}`)
+                      .map(
+                        (item) =>
+                          `${item.product_name} ${item.products?.volume_ml ? `(${item.products.volume_ml} ml)` : ""} ×${item.paid_quantity}`,
+                      )
                       .join(", ") || "No paid items"}
                   </p>
                 </div>
@@ -410,7 +414,12 @@ export function CustomerProfile({
                       className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-sm"
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-semibold">{item.product_name}</p>
+                        <p className="truncate font-semibold">
+                          {item.product_name}{" "}
+                          {item.products?.volume_ml ? (
+                            <span className="font-bold text-primary">{item.products.volume_ml} ml</span>
+                          ) : null}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {item.paid_quantity} × {formatMoney(Number(item.unit_price), currency)}
                           {item.free_quantity > 0 ? ` · ${item.free_quantity} FREE` : ""}

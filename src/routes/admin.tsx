@@ -73,6 +73,7 @@ const branchItems = [
   { title: "Customers", url: "/admin/customers", icon: Users },
   { title: "Transactions", url: "/admin/transactions", icon: Receipt },
   { title: "Reports", url: "/admin/reports", icon: BarChart3 },
+  { title: "Policies", url: "/admin/policies", icon: ScrollText },
   { title: "Branch settings", url: "/admin/branch-settings", icon: Settings },
   { title: "Change password", url: "/admin/change-password", icon: KeyRound },
 ];
@@ -83,6 +84,7 @@ const branchAllowed = new Set([
   "/admin/customers",
   "/admin/transactions",
   "/admin/reports",
+  "/admin/policies",
   "/admin/branch-settings",
   "/admin/change-password",
 ]);

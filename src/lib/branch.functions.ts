@@ -322,7 +322,7 @@ export const getCustomerHistory = createServerFn({ method: "POST" })
     const { data: rows, error } = await db
       .from("transactions")
       .select(
-        "id, created_at, total_amount, paid_glasses, free_glasses, payment_method, reference_no, status, branches(name, address), transaction_items(id, product_name, unit_price, paid_quantity, free_quantity, line_total, loyalty_target_at_purchase, reward_quantity_at_purchase)",
+        "id, created_at, total_amount, paid_glasses, free_glasses, payment_method, reference_no, status, branches(name, address), transaction_items(id, product_name, unit_price, paid_quantity, free_quantity, line_total, loyalty_target_at_purchase, reward_quantity_at_purchase, products(volume_ml))",
       )
       .eq("customer_id", data.customerId)
       .order("created_at", { ascending: false })

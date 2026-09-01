@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/loyalty";
 import { getRewardHistory } from "@/lib/branch.functions";
 import { exportRows } from "@/lib/export";
 import { DateRangeFilter, useDateRange } from "@/components/DateRangeFilter";
+import { useStaffAccess } from "@/hooks/useStaffAccess";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -239,6 +240,7 @@ async function loadRewardHistory(customerId: string) {
 
 function CustomerDetailPage() {
   const { customerId } = Route.useParams();
+  const { access } = useStaffAccess();
   const { range, setRange, fromIso, toIso } = useDateRange("30d");
   const [search, setSearch] = useState("");
   const [branch, setBranch] = useState("all");
@@ -615,7 +617,9 @@ function CustomerDetailPage() {
 
       <Card className="rounded-2xl shadow-card">
         <CardContent className="space-y-4 p-4">
-          <h2 className="text-lg font-bold">Branch-wise transaction history</h2>
+          <h2 className="text-lg font-bold">
+            {access.isSuperAdmin ? "Branch-wise transaction history" : "Transaction history"}
+          </h2>
 
           <div className="space-y-4">
             {branchGroups.map((group) => (
