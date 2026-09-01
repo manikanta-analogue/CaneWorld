@@ -339,7 +339,12 @@ export const getPublicPolicies = createServerFn({ method: "GET" }).handler(async
     .select("policy_type, title, content, updated_at")
     .order("policy_type");
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as Array<{
+    policy_type: "terms" | "privacy" | "cancellation" | "refund";
+    title: string;
+    content: string;
+    updated_at: string;
+  }>;
 });
 
 /** Fetch comprehensive reward history with product-specific loyalty progression and all historical rules. */

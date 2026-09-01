@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { useStaffAccess } from "@/hooks/useStaffAccess";
 
 export const Route = createFileRoute("/admin/policies")({ component: PoliciesPage });
@@ -65,7 +65,7 @@ function PoliciesPage() {
         </p>
       </div>
       {isLoading ? <p className="text-sm text-muted-foreground">Loading policies…</p> : null}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="space-y-4">
         {policies.map((policy) => (
           <Card key={policy.policy_type} className="rounded-2xl shadow-card">
             <CardHeader>
@@ -73,13 +73,12 @@ function PoliciesPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <Label htmlFor={`policy-${policy.policy_type}`}>Content</Label>
-              <Textarea
-                id={`policy-${policy.policy_type}`}
+              <RichTextEditor
                 value={drafts[policy.policy_type] ?? ""}
-                onChange={(event) => setDrafts((current) => ({ ...current, [policy.policy_type]: event.target.value }))}
+                onChange={(html) => setDrafts((current) => ({ ...current, [policy.policy_type]: html }))}
+                disabled={!access.isSuperAdmin}
                 placeholder={`Write the ${policy.title.toLowerCase()} here…`}
-                className="min-h-48 resize-y"
-                readOnly={!access.isSuperAdmin}
+                minHeight="250px"
               />
               {access.isSuperAdmin && (
                 <Button onClick={() => save.mutate(policy)} disabled={save.isPending}>
