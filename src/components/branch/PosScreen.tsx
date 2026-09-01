@@ -335,7 +335,7 @@ export function PosScreen({
                       className={`h-20 w-20 shrink-0 rounded-2xl object-cover ${art.tint}`}
                     />
                     <div className="min-w-0 space-y-1">
-                      <p className="truncate text-base font-extrabold leading-tight">{product.name}</p>
+                      <p className="truncate text-base font-extrabold leading-tight">{product.name} ({product.volume_ml} ml)</p>
                       {product.description ? (
                         <p className="line-clamp-2 text-xs text-muted-foreground">{product.description}</p>
                       ) : null}
@@ -352,21 +352,22 @@ export function PosScreen({
                   </div>
 
                   <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                    {hasLoyalty ? (
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className={eligible ? "font-semibold text-primary" : "text-muted-foreground"}>
-                            {eligible ? "Free glass ready!" : "Progress"}
-                          </span>
-                          <span className="font-semibold">
-                            {done} / {rule.target}
-                          </span>
-                        </div>
-                        <ProgressBar value={(done / rule.target) * 100} className="h-1.5" />
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">{product.volume_ml} ml</span>
-                    )}
+                    <div className="min-w-0 space-y-1">
+                      {/* <span className="text-xs font-bold text-primary">{product.volume_ml} ml</span> */}
+                      {hasLoyalty ? (
+                        <>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className={eligible ? "font-semibold text-primary" : "text-muted-foreground"}>
+                              {eligible ? "Free glass ready!" : "Progress"}
+                            </span>
+                            <span className="font-semibold">
+                              {done} / {rule.target}
+                            </span>
+                          </div>
+                          <ProgressBar value={(done / rule.target) * 100} className="h-1.5" />
+                        </>
+                      ) : null}
+                    </div>
 
                     {qty === 0 ? (
                       <Button

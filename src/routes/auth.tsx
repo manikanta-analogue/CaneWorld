@@ -208,12 +208,12 @@ function AuthPage() {
               {mode === "login" && (
                 <>
                   <p className="text-xs text-muted-foreground">For customer sign-in, open the user panel.</p>
-                  <Link
+                  {/* <Link
                     to="/scan"
                     className="inline-flex items-center justify-center rounded-full border border-border bg-background px-3 py-2 font-medium text-foreground transition hover:bg-accent"
                   >
                     Login as user
-                  </Link>
+                  </Link> */}
                   <button
                     className="text-primary hover:underline"
                     onClick={() => setMode("forgot")}
@@ -221,7 +221,7 @@ function AuthPage() {
                   >
                     Forgot password?
                   </button>
-                  {role === "admin" && (
+                  {/* {role === "admin" && (
                     <button
                       className="text-muted-foreground hover:underline"
                       onClick={() => setMode("signup")}
@@ -229,7 +229,7 @@ function AuthPage() {
                     >
                       First time here? Create a staff account
                     </button>
-                  )}
+                  )} */}
                   {role === "branch" && (
                     <p className="text-xs text-muted-foreground">
                       Branch login details are created by the admin under Branches.
