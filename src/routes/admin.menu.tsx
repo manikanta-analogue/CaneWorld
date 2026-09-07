@@ -210,6 +210,11 @@ function MenuPage() {
   if (!data) return null;
 
   const nextSortOrder = (data.products.length + 1) * 100;
+  const visibleCategories = term
+    ? data.categories.filter((category) => (byCategory.get(category.id)?.length ?? 0) > 0)
+    : data.categories;
+  const hasUncategorisedMatches = (byCategory.get("none")?.length ?? 0) > 0;
+  const hasSearchResults = visibleCategories.length > 0 || hasUncategorisedMatches;
 
   return (
     <div className="space-y-5">
@@ -232,14 +237,14 @@ function MenuPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2 rounded-xl border border-border px-3 py-2">
+          {/* <div className="flex items-center gap-2 rounded-xl border border-border px-3 py-2">
             <span className="text-sm font-medium">Show hidden</span>
             <Switch
               checked={showHidden}
               onCheckedChange={setShowHidden}
               aria-label="Show hidden juices"
             />
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -273,7 +278,7 @@ function MenuPage() {
       )}
 
       <div className="space-y-4">
-        {data.categories.map((category) => {
+        {visibleCategories.map((category) => {
           const items = byCategory.get(category.id) ?? [];
           const isCollapsed = collapsed[category.id] ?? false;
           return (
@@ -407,7 +412,7 @@ function MenuPage() {
           );
         })}
 
-        {(byCategory.get("none") ?? []).length > 0 ? (
+        {hasUncategorisedMatches ? (
           <Card className="rounded-2xl shadow-card">
             <CardHeader>
               <CardTitle className="text-base">Uncategorised</CardTitle>
@@ -443,6 +448,11 @@ function MenuPage() {
 
         {data.categories.length === 0 ? (
           <p className="text-sm text-muted-foreground">Add your first category above to get started.</p>
+        ) : null}
+        {term && !hasSearchResults ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No juices found for “{search.trim()}”.
+          </p>
         ) : null}
       </div>
 
