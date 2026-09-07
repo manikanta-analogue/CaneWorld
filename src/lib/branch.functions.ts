@@ -666,19 +666,53 @@ export const submitCheckout = createServerFn({ method: "POST" })
       .single();
     if (txnError) throw txnError;
 
-    const { error: itemsError } = await db.from("transaction_items").insert(
-      items.map((item) => ({
+    const transactionItems = items.flatMap((item) => {
+      const base = {
         transaction_id: txn.id,
         product_id: item.product_id,
         product_name: item.product_name,
         unit_price: item.unit_price,
+      };
+      const ruleChanged =
+        item.latest_loyalty_target !== item.loyalty_target ||
+        item.latest_loyalty_reward !== item.loyalty_reward;
+
+      // A mixed line can close an old reward cycle and start a new one in the
+      // same checkout. Store the two parts separately so the paid quantity is
+      // attributed to the new rule while the free quantity keeps the rule that
+      // earned it. Quantities and totals are unchanged.
+      if (item.paid_quantity > 0 && item.free_quantity > 0 && ruleChanged) {
+        return [
+          {
+            ...base,
+            paid_quantity: item.paid_quantity,
+            free_quantity: 0,
+            line_total: item.line_total,
+            loyalty_target_at_purchase: item.latest_loyalty_target,
+            reward_quantity_at_purchase: item.latest_loyalty_reward,
+          },
+          {
+            ...base,
+            paid_quantity: 0,
+            free_quantity: item.free_quantity,
+            line_total: 0,
+            loyalty_target_at_purchase: item.loyalty_target,
+            reward_quantity_at_purchase: item.loyalty_reward,
+          },
+        ];
+      }
+
+      return [{
+        ...base,
         paid_quantity: item.paid_quantity,
         free_quantity: item.free_quantity,
         line_total: item.line_total,
         loyalty_target_at_purchase: item.loyalty_target,
         reward_quantity_at_purchase: item.loyalty_reward,
-      })),
-    );
+      }];
+    });
+
+    const { error: itemsError } = await db.from("transaction_items").insert(transactionItems);
     if (itemsError) throw itemsError;
 
     for (const item of items) {
