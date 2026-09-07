@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   Bar,
   BarChart,
@@ -88,16 +89,19 @@ async function loadReports(fromIso: string, toIso: string, branchId: string) {
     customerSpend.set(customer, (customerSpend.get(customer) ?? 0) + Number(row.total_amount));
   });
 
-  // Branch-wise daily / weekly / monthly performance (always across all branches)
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Branch performance follows both top-level filters. For historical ranges,
+  // daily/weekly/monthly are anchored to the selected range's final day.
+  const rangeEnd = new Date(toIso);
+  const startOfToday = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate());
   const startOfWeek = new Date(startOfToday);
   startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfMonth = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), 1);
+  const performanceBranches =
+    branchId === "all" ? branches : branches.filter((branch) => branch.id === branchId);
 
-  const branchPerformance = branches
+  const branchPerformance = performanceBranches
     .map((branch) => {
-      const branchTxns = allRows.filter((row) => row.branch_id === branch.id);
+      const branchTxns = rows.filter((row) => row.branch_id === branch.id);
       const sumAfter = (from: Date) =>
         branchTxns
           .filter((row) => new Date(row.created_at) >= from)
@@ -157,28 +161,39 @@ function ReportsPage() {
   const { range, setRange, fromIso, toIso } = useDateRange("30d");
   const { access } = useStaffAccess();
   const [branchId, setBranchId] = useState("all");
+  const [exporting, setExporting] = useState(false);
   const { data } = useQuery({
     queryKey: ["reports", fromIso, toIso, branchId],
     queryFn: () => loadReports(fromIso, toIso, branchId),
   });
 
-  const download = (format: "csv" | "xlsx") => {
-    if (!data) return;
-    exportRows(
-      `sales-report-${range.from}-to-${range.to}`,
-      data.rows.map((row) => ({
-        Date: new Date(row.created_at).toLocaleString("en-IN"),
-        Branch: row.branches?.name ?? "Unknown",
-        Customer: row.customers?.name ?? "Walk-in",
-        Mobile: row.customers?.mobile ?? "",
-        Reference: row.reference_no,
-        Payment: row.payment_method,
-        "Paid glasses": row.paid_glasses,
-        "Free glasses": row.free_glasses,
-        Amount: Number(row.total_amount),
-      })),
-      format,
-    );
+  const download = async (format: "csv" | "xlsx") => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      // Fetch against the current controls instead of exporting a possibly
+      // stale React Query result from the previously selected range.
+      const exportData = await loadReports(fromIso, toIso, branchId);
+      exportRows(
+        `sales-report-${range.from}-to-${range.to}`,
+        exportData.rows.map((row) => ({
+          Date: new Date(row.created_at).toLocaleString("en-IN"),
+          Branch: row.branches?.name ?? "Unknown",
+          Customer: row.customers?.name ?? "Walk-in",
+          Mobile: row.customers?.mobile ?? "",
+          Reference: row.reference_no,
+          Payment: row.payment_method,
+          "Paid glasses": row.paid_glasses,
+          "Free glasses": row.free_glasses,
+          Amount: Number(row.total_amount),
+        })),
+        format,
+      );
+    } catch (error) {
+      toast.error((error as Error).message || "Could not prepare the report");
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -207,7 +222,12 @@ function ReportsPage() {
             </SelectContent>
           </Select>
           )}
-          <DateRangeFilter range={range} onChange={setRange} onExport={download} />
+          <DateRangeFilter
+            range={range}
+            onChange={setRange}
+            onExport={download}
+            exportPending={exporting}
+          />
         </div>
       </div>
 
@@ -291,7 +311,7 @@ function ReportsPage() {
               ))}
               {data.branchPerformance.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                     No branch data in this range.
                   </TableCell>
                 </TableRow>

@@ -95,10 +95,12 @@ export function DateRangeFilter({
   range,
   onChange,
   onExport,
+  exportPending = false,
 }: {
   range: DateRange;
   onChange: (next: DateRange) => void;
   onExport?: (format: "csv" | "xlsx") => void;
+  exportPending?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -146,8 +148,8 @@ export function DateRangeFilter({
       {onExport && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Download className="mr-1 h-4 w-4" /> Download
+            <Button variant="outline" size="sm" disabled={exportPending}>
+              <Download className="mr-1 h-4 w-4" /> {exportPending ? "Preparing…" : "Download"}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
