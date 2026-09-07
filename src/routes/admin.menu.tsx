@@ -64,6 +64,15 @@ function loyaltyLabel(product: MenuProduct) {
   return `Buy ${product.loyalty_target} get ${reward} free`;
 }
 
+const normalizedName = (value: string) => value.trim().toLocaleLowerCase();
+
+function categoryError(error: unknown) {
+  if ((error as { code?: string })?.code === "23505") {
+    return new Error("This category name already exists");
+  }
+  return error;
+}
+
 function MenuPage() {
   const queryClient = useQueryClient();
   const { access } = useStaffAccess();
@@ -90,11 +99,14 @@ function MenuPage() {
     mutationFn: async () => {
       const name = categoryName.trim();
       if (name.length < 2) throw new Error("Enter a category name");
+      if (data?.categories.some((category) => normalizedName(category.name) === normalizedName(name))) {
+        throw new Error("This category name already exists");
+      }
       const nextOrder = (data?.categories.at(-1)?.sort_order ?? 0) + 1;
       const { error: insertError } = await supabase
         .from("categories")
         .insert({ name, sort_order: nextOrder });
-      if (insertError) throw insertError;
+      if (insertError) throw categoryError(insertError);
     },
     onSuccess: () => {
       toast.success("Category added");
@@ -115,11 +127,18 @@ function MenuPage() {
       sort_order: number;
     }) => {
       if (name.trim().length < 2) throw new Error("Enter a category name");
+      if (
+        data?.categories.some(
+          (item) => item.id !== category.id && normalizedName(item.name) === normalizedName(name),
+        )
+      ) {
+        throw new Error("This category name already exists");
+      }
       const { error: updateError } = await supabase
         .from("categories")
         .update({ name: name.trim(), sort_order })
         .eq("id", category.id);
-      if (updateError) throw updateError;
+      if (updateError) throw categoryError(updateError);
     },
     onSuccess: () => {
       toast.success("Category updated");

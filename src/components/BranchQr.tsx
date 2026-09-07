@@ -57,7 +57,7 @@ export function BranchQr({
     link.click();
   };
 
-  const print = () => {
+  const print = async () => {
     if (!dataUrl) return;
     const win = window.open("", "_blank", "width=520,height=680");
     if (!win) return;
@@ -70,6 +70,14 @@ export function BranchQr({
       </body></html>`,
     );
     win.document.close();
+
+    const image = win.document.querySelector("img");
+    if (image && !image.complete) {
+      await new Promise<void>((resolve) => {
+        image.addEventListener("load", () => resolve(), { once: true });
+        image.addEventListener("error", () => resolve(), { once: true });
+      });
+    }
     win.focus();
     win.print();
   };

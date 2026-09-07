@@ -91,6 +91,15 @@ const emptyForm = {
   image_url: "",
 };
 
+const normalizedName = (value: string) => value.trim().toLocaleLowerCase();
+
+function branchError(error: unknown) {
+  if ((error as { code?: string })?.code === "23505") {
+    return new Error("This branch name already exists");
+  }
+  return error;
+}
+
 async function downloadAllBranchQrCodes(branches: Branch[]) {
   if (!branches.length) {
     toast.info("No branches available to download.");
@@ -224,9 +233,17 @@ function BranchesPage() {
   const save = useMutation({
     mutationFn: async () => {
       const parsed = branchSchema.parse(form);
+      if (
+        branches.some(
+          (branch) =>
+            branch.id !== editing?.id && normalizedName(branch.name) === normalizedName(parsed.name),
+        )
+      ) {
+        throw new Error("This branch name already exists");
+      }
       if (editing) {
         const { error } = await supabase.from("branches").update(parsed).eq("id", editing.id);
-        if (error) throw error;
+        if (error) throw branchError(error);
         if (editing.image_url && editing.image_url !== parsed.image_url) {
           await removeProductImage(editing.image_url);
         }
@@ -243,7 +260,7 @@ function BranchesPage() {
         .insert(parsed)
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) throw branchError(error);
       if (email && password) {
         await createBranchUser({
           data: {
