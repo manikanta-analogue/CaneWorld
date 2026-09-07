@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { ImagePlus, KeyRound, Trash2, UserRound } from "lucide-react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -31,6 +31,27 @@ const schema = z.object({
 
 function SettingsPage() {
   const queryClient = useQueryClient();
+  const { data: adminAccount } = useQuery({
+    queryKey: ["main-admin-account"],
+    queryFn: async () => {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      const user = userData.user;
+      if (!user) return null;
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+
+      return {
+        name: profile?.full_name || user.user_metadata?.full_name || "Main Admin",
+        email: profile?.email || user.email || "",
+      };
+    },
+  });
   const { data } = useQuery({
     queryKey: ["admin-settings"],
     queryFn: async () => {
@@ -271,6 +292,38 @@ function SettingsPage() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
+        <Card className="rounded-2xl shadow-card lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <UserRound className="h-4 w-4" /> Main admin account
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+            <div className="space-y-2">
+              <Label htmlFor="main-admin-name">Name</Label>
+              <Input
+                id="main-admin-name"
+                value={adminAccount?.name ?? "Loading…"}
+                disabled
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="main-admin-email">Login email</Label>
+              <Input
+                id="main-admin-email"
+                type="email"
+                value={adminAccount?.email ?? "Loading…"}
+                disabled
+              />
+            </div>
+            <Button asChild variant="outline" className="h-10">
+              <Link to="/admin/change-password">
+                <KeyRound className="mr-1 h-4 w-4" /> Change password
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card className="rounded-2xl shadow-card">
           <CardHeader>
             <CardTitle className="text-base">Brand identity</CardTitle>
