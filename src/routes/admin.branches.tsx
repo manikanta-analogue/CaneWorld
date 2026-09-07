@@ -227,8 +227,18 @@ function BranchesPage() {
 
 
   const [newLogin, setNewLogin] = useState({ email: "", password: "" });
+  const [editLoginEmail, setEditLoginEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
   const [showNewLoginPassword, setShowNewLoginPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+
+  const { data: branchUsers = [] } = useQuery({
+    queryKey: ["branch-users"],
+    queryFn: () => listBranchUsers(),
+  });
+  const editingLogin = editing
+    ? (branchUsers.find((user) => user.branchId === editing.id) ?? null)
+    : null;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -242,10 +252,33 @@ function BranchesPage() {
         throw new Error("This branch name already exists");
       }
       if (editing) {
+        const loginEmail = editLoginEmail.trim().toLowerCase();
+        if (editingLogin) {
+          if (editPassword && editPassword.length < 8) {
+            throw new Error("Password must be at least 8 characters");
+          }
+        } else if (loginEmail || editPassword) {
+          if (!/^\S+@\S+\.\S+$/.test(loginEmail)) throw new Error("Enter a valid branch login email");
+          if (editPassword.length < 8) throw new Error("Branch password must be at least 8 characters");
+        }
         const { error } = await supabase.from("branches").update(parsed).eq("id", editing.id);
         if (error) throw branchError(error);
         if (editing.image_url && editing.image_url !== parsed.image_url) {
           await removeProductImage(editing.image_url);
+        }
+        if (editPassword && editingLogin) {
+          await resetBranchUserPassword({
+            data: { userId: editingLogin.id, password: editPassword },
+          });
+        } else if (!editingLogin && loginEmail && editPassword) {
+          await createBranchUser({
+            data: {
+              branchId: editing.id,
+              email: loginEmail,
+              password: editPassword,
+              fullName: `${parsed.name} login`,
+            },
+          });
         }
         return;
       }
@@ -282,6 +315,9 @@ function BranchesPage() {
       setForm(emptyForm);
       setFormPreview(null);
       setNewLogin({ email: "", password: "" });
+      setEditLoginEmail("");
+      setEditPassword("");
+      setShowLoginPassword(false);
     },
 
     onError: (error) =>
@@ -345,43 +381,11 @@ function BranchesPage() {
       image_url: branch.image_url ?? "",
     });
     setFormPreview(branch.image_url ? await signProductImage(branch.image_url) : null);
+    setEditLoginEmail("");
+    setEditPassword("");
+    setShowLoginPassword(false);
     setOpen(true);
   };
-
-  const { data: branchUsers = [] } = useQuery({
-    queryKey: ["branch-users"],
-    queryFn: () => listBranchUsers(),
-  });
-  const [loginBranch, setLoginBranch] = useState<Branch | null>(null);
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-  const existingLogin = loginBranch
-    ? (branchUsers.find((u) => u.branchId === loginBranch.id) ?? null)
-    : null;
-
-  const saveLogin = useMutation({
-    mutationFn: async () => {
-      if (!loginBranch) return;
-      const password = loginForm.password;
-      if (password.length < 8) throw new Error("Password must be at least 8 characters");
-      if (existingLogin) {
-        await resetBranchUserPassword({ data: { userId: existingLogin.id, password } });
-        return "reset" as const;
-      }
-      const email = loginForm.email.trim().toLowerCase();
-      if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("Enter a valid email");
-      await createBranchUser({
-        data: { branchId: loginBranch.id, email, password, fullName: `${loginBranch.name} login` },
-      });
-      return "created" as const;
-    },
-    onSuccess: (result) => {
-      toast.success(result === "reset" ? "Password updated" : "Branch login created");
-      queryClient.invalidateQueries({ queryKey: ["branch-users"] });
-      setLoginBranch(null);
-      setLoginForm({ email: "", password: "" });
-    },
-    onError: (error) => toast.error((error as Error).message),
-  });
 
 
 
@@ -412,6 +416,9 @@ function BranchesPage() {
                 setForm(emptyForm);
                 setFormPreview(null);
                 setNewLogin({ email: "", password: "" });
+                setEditLoginEmail("");
+                setEditPassword("");
+                setShowLoginPassword(false);
               }
             }}
           >
@@ -579,7 +586,53 @@ function BranchesPage() {
                       </div>
                     </div>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="space-y-3 rounded-xl border border-border p-3">
+                    <div>
+                      <p className="text-sm font-semibold">Branch login access</p>
+                      <p className="text-xs text-muted-foreground">
+                        {editingLogin
+                          ? "The login email cannot be changed. Enter a password only when you want to replace it."
+                          : "No login exists yet. Add an email and password to create branch access."}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-login-email">Login email</Label>
+                      <Input
+                        id="edit-login-email"
+                        type="email"
+                        autoComplete="off"
+                        placeholder="branch@caneworld.in"
+                        value={editingLogin?.email ?? editLoginEmail}
+                        disabled={Boolean(editingLogin)}
+                        onChange={(e) => setEditLoginEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-login-password">New password</Label>
+                      <div className="relative">
+                        <Input
+                          id="edit-login-password"
+                          type={showLoginPassword ? "text" : "password"}
+                          autoComplete="new-password"
+                          placeholder={editingLogin ? "Leave blank to keep current password" : "At least 8 characters"}
+                          value={editPassword}
+                          onChange={(e) => setEditPassword(e.target.value)}
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          aria-label={showLoginPassword ? "Hide branch password" : "Show branch password"}
+                          onClick={() => setShowLoginPassword((value) => !value)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <Button className="h-12 w-full" onClick={() => save.mutate()} disabled={save.isPending}>
                   {save.isPending ? "Saving…" : "Save branch"}
@@ -699,75 +752,6 @@ function BranchesPage() {
         ))}
       </div>
 
-      <Dialog
-        open={loginBranch !== null}
-        onOpenChange={(next) => {
-          if (!next) {
-            setLoginBranch(null);
-            setLoginForm({ email: "", password: "" });
-          }
-        }}
-      >
-        <DialogContent className="rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>
-              {existingLogin ? "Change branch password" : "Create branch login"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              {loginBranch?.name} · staff signs in at <span className="font-semibold">/auth</span>{" "}
-              and sees only this branch&apos;s data.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="login-email">Email</Label>
-              <Input
-                id="login-email"
-                type="email"
-                autoComplete="off"
-                disabled={Boolean(existingLogin)}
-                value={existingLogin?.email ?? loginForm.email}
-                placeholder="mgroad@caneworld.in"
-                onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="login-password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="login-password"
-                  type={showLoginPassword ? "text" : "password"}
-                  autoComplete="new-password"
-                  value={loginForm.password}
-                  placeholder="At least 8 characters"
-                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  aria-label={showLoginPassword ? "Hide branch password" : "Show branch password"}
-                  onClick={() => setShowLoginPassword((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-            <Button
-              className="h-12 w-full"
-              onClick={() => saveLogin.mutate()}
-              disabled={saveLogin.isPending}
-            >
-              {saveLogin.isPending
-                ? "Saving…"
-                : existingLogin
-                  ? "Update password"
-                  : "Create login"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
