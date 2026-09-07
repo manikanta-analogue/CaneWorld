@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowRight, Camera, Gift, LogOut, Pencil, ReceiptText, User } from "lucide-react";
@@ -19,6 +19,7 @@ import {
 } from "@/lib/loyalty";
 import { categoryArt, productImage } from "@/lib/category-art";
 import { Progress as ProgressBar } from "@/components/ui/progress";
+import { SafeHtmlContent } from "@/components/SafeHtmlContent";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,6 +124,7 @@ export function CustomerProfile({
   const [name, setName] = useState(customer.name);
   const [preview, setPreview] = useState<string | null>(null);
   const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [visibleTransactions, setVisibleTransactions] = useState(10);
 
   const history = useQuery({
     queryKey: ["customer-history", customer.id],
@@ -185,6 +187,12 @@ export function CustomerProfile({
       return inRange && inMethod;
     });
   }, [history.data, range, method, customFrom, customTo]);
+
+  useEffect(() => {
+    setVisibleTransactions(10);
+  }, [customer.id, range, method, customFrom, customTo]);
+
+  const visibleHistory = filtered.slice(0, visibleTransactions);
 
   const spent = filtered.reduce((sum, row) => sum + Number(row.total_amount), 0);
   const freeGlasses = filtered.reduce((sum, row) => sum + row.free_glasses, 0);
@@ -305,7 +313,7 @@ export function CustomerProfile({
           </div>
 
           <div className="mt-3 space-y-2">
-            {filtered.map((row) => (
+            {visibleHistory.map((row) => (
               <button
                 key={row.id}
                 onClick={() => setBill(row)}
@@ -339,6 +347,16 @@ export function CustomerProfile({
             {!history.isLoading && filtered.length === 0 ? (
               <p className="text-sm text-muted-foreground">No transactions for this filter.</p>
             ) : null}
+            {visibleTransactions < filtered.length ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full rounded-2xl"
+                onClick={() => setVisibleTransactions((current) => current + 10)}
+              >
+                Load 10 more
+              </Button>
+            ) : null}
           </div>
         </section>
 
@@ -349,9 +367,16 @@ export function CustomerProfile({
             {(policies.data ?? []).map((policy) => (
               <details key={policy.policy_type} className="rounded-xl bg-secondary/50 p-3">
                 <summary className="cursor-pointer text-sm font-semibold">{policy.title}</summary>
-                <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
-                  {policy.content.trim() || "This policy has not been published yet."}
-                </p>
+                {policy.content.trim() ? (
+                  <SafeHtmlContent
+                    html={policy.content}
+                    className="mt-2 text-xs leading-5 text-muted-foreground"
+                  />
+                ) : (
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    This policy has not been published yet.
+                  </p>
+                )}
               </details>
             ))}
             {policies.isLoading ? <p className="text-xs text-muted-foreground">Loading policies…</p> : null}

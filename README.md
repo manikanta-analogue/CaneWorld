@@ -24,3 +24,7 @@ the build; `SUPABASE_SERVICE_ROLE_KEY` is server-only and must never use the
 - React
 - Tailwind CSS
 - Supabase
+
+## Documentation
+
+- [Loyalty logic, rule changes, and diagnostic queries](./LOYALTY_LOGIC.md)

@@ -190,6 +190,20 @@ function BranchPortal() {
     return <p className="p-6 text-sm text-muted-foreground">Loading branch…</p>;
   }
 
+  if (branchQuery.isError) {
+    return (
+      <div className="mx-auto max-w-sm px-4 py-16 text-center">
+        <h1 className="text-xl font-extrabold">Could not load branch</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          The branch service is temporarily unavailable. Please try again.
+        </p>
+        <Button className="mt-5" variant="outline" onClick={() => branchQuery.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
   if (!branch || branch.status !== "active") {
     return (
       <div className="mx-auto max-w-sm px-4 py-16 text-center">
