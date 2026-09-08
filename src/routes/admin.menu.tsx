@@ -75,7 +75,7 @@ function categoryError(error: unknown) {
 
 function MenuPage() {
   const queryClient = useQueryClient();
-  const { access } = useStaffAccess();
+  const { access, loading: accessLoading } = useStaffAccess();
   const { data, isLoading, error } = useQuery({ queryKey: ["catalogue"], queryFn: loadCatalogue });
   const [categoryName, setCategoryName] = useState("");
   const [search, setSearch] = useState("");
@@ -194,25 +194,40 @@ function MenuPage() {
   });
 
   const term = search.trim().toLowerCase();
+  const scopedProducts = useMemo(() => {
+    const products = data?.products ?? [];
+    if (access.isSuperAdmin) return products;
+    if (!access.branchId) return [];
+    return products.filter(
+      (product) =>
+        !Array.isArray(product.branch_ids) ||
+        product.branch_ids.length === 0 ||
+        product.branch_ids.includes(access.branchId as string),
+    );
+  }, [data?.products, access.isSuperAdmin, access.branchId]);
+
   const byCategory = useMemo(() => {
     const map = new Map<string, MenuProduct[]>();
-    for (const product of data?.products ?? []) {
+    for (const product of scopedProducts) {
       if (!showHidden && !product.is_active) continue;
       if (term && !product.name.toLowerCase().includes(term)) continue;
       const key = product.category_id ?? "none";
       map.set(key, [...(map.get(key) ?? []), product]);
     }
     return map;
-  }, [data, showHidden, term]);
+  }, [scopedProducts, showHidden, term]);
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading menu…</p>;
+  if (isLoading || accessLoading) return <p className="text-sm text-muted-foreground">Loading menu…</p>;
   if (error) return <p className="text-sm text-destructive">Could not load the menu. Please retry.</p>;
   if (!data) return null;
 
   const nextSortOrder = (data.products.length + 1) * 100;
+  const scopedCategories = access.isSuperAdmin
+    ? data.categories
+    : data.categories.filter((category) => (byCategory.get(category.id)?.length ?? 0) > 0);
   const visibleCategories = term
-    ? data.categories.filter((category) => (byCategory.get(category.id)?.length ?? 0) > 0)
-    : data.categories;
+    ? scopedCategories.filter((category) => (byCategory.get(category.id)?.length ?? 0) > 0)
+    : scopedCategories;
   const hasUncategorisedMatches = (byCategory.get("none")?.length ?? 0) > 0;
   const hasSearchResults = visibleCategories.length > 0 || hasUncategorisedMatches;
 

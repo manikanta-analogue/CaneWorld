@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImageOff, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { removeProductImage, uploadProductImage } from "@/lib/product-images";
+import { removeProductImage, signProductImage, uploadProductImage } from "@/lib/product-images";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,6 +145,8 @@ export function ProductDialog({
   const [allBranchesMode, setAllBranchesMode] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+  const [currentImage, setCurrentImage] = useState<string | null>(signedImage);
+  const [currentImagePath, setCurrentImagePath] = useState(product?.image_url ?? "");
   const fileInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -154,7 +156,9 @@ export function ProductDialog({
     setAllBranchesMode(!product || !Array.isArray(product.branch_ids) || product.branch_ids.length === 0);
     setPendingFile(null);
     setPendingPreview(null);
-  }, [open, product, defaultCategoryId, nextSortOrder]);
+    setCurrentImage(signedImage);
+    setCurrentImagePath(product?.image_url ?? "");
+  }, [open, product, defaultCategoryId, nextSortOrder, signedImage]);
 
   const pickPendingFile = (file: File) => {
     setPendingFile(file);
@@ -228,13 +232,20 @@ export function ProductDialog({
         .update({ image_url: path })
         .eq("id", product.id);
       if (error) throw error;
-      if (product.image_url) await removeProductImage(product.image_url);
+      if (currentImagePath && currentImagePath !== path) await removeProductImage(currentImagePath);
+      return { path, signed: await signProductImage(path) };
     },
-    onSuccess: () => {
+    onSuccess: ({ path, signed }) => {
+      setCurrentImagePath(path);
+      setCurrentImage(signed);
+      setPendingPreview(null);
       toast.success("Image updated");
       refresh();
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (e) => {
+      setPendingPreview(null);
+      toast.error((e as Error).message);
+    },
   });
 
   const clearImage = useMutation({
@@ -245,9 +256,11 @@ export function ProductDialog({
         .update({ image_url: "" })
         .eq("id", product.id);
       if (error) throw error;
-      await removeProductImage(product.image_url);
+      await removeProductImage(currentImagePath);
     },
     onSuccess: () => {
+      setCurrentImagePath("");
+      setCurrentImage(null);
       toast.success("Image removed");
       refresh();
     },
@@ -277,15 +290,18 @@ export function ProductDialog({
               const file = e.target.files?.[0];
               e.target.value = "";
               if (!file) return;
-              if (product) setImage.mutate(file);
+              if (product) {
+                setPendingPreview(URL.createObjectURL(file));
+                setImage.mutate(file);
+              }
               else pickPendingFile(file);
             }}
           />
           {product ? (
             <div className="flex items-center gap-3">
-              {signedImage ? (
+              {pendingPreview || currentImage ? (
                 <img
-                  src={signedImage}
+                  src={pendingPreview ?? currentImage!}
                   alt={product.name}
                   className="h-16 w-16 rounded-xl object-cover"
                 />
@@ -302,9 +318,9 @@ export function ProductDialog({
                   disabled={setImage.isPending}
                 >
                   <Upload className="mr-1 h-4 w-4" />
-                  {product.image_url ? "Replace" : "Upload"} image
+                  {currentImagePath ? "Replace" : "Upload"} image
                 </Button>
-                {product.image_url ? (
+                {currentImagePath ? (
                   <Button
                     variant="ghost"
                     size="sm"
