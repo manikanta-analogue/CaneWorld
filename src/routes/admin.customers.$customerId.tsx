@@ -493,9 +493,9 @@ function CustomerDetailPage() {
                         Current cycle starts after the last reward redemption.
                       </p>
                     </div>
-                    <Badge variant={rewardReady ? "default" : "secondary"}>
+                   {rewardReady && <Badge variant={rewardReady ? "default" : "secondary"}>
                       {rewardReady ? `${rewardQty} free ready` : ``} 
-                    </Badge>
+                    </Badge>}
 
              
                   </div>
@@ -598,9 +598,9 @@ function CustomerDetailPage() {
                                     )}
                                   </div>
                                 </div>
-                                <span className="whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                {/* <span className="whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                                   {change.transaction_count} sale{change.transaction_count === 1 ? "" : "s"}
-                                </span>
+                                </span> */}
                               </div>
                             </div>
                           ),
