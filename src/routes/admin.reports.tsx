@@ -208,19 +208,19 @@ function ReportsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {access.isSuperAdmin && (
-          <Select value={branchId} onValueChange={setBranchId}>
-            <SelectTrigger className="w-[180px] bg-card">
-              <SelectValue placeholder="All branches" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All branches</SelectItem>
-              {(data?.branches ?? []).map((branch) => (
-                <SelectItem key={branch.id} value={branch.id}>
-                  {branch.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select value={branchId} onValueChange={setBranchId}>
+              <SelectTrigger className="w-[180px] bg-card">
+                <SelectValue placeholder="All branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All branches</SelectItem>
+                {(data?.branches ?? []).map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           <DateRangeFilter
             range={range}
@@ -232,130 +232,148 @@ function ReportsPage() {
       </div>
 
       {!data ? null : (
-      <>
+        <>
 
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="rounded-2xl shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base">Daily sales</CardTitle>
-          </CardHeader>
-          <CardContent className="h-56">
-            <SalesChart data={data.daily} />
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base">Weekly sales</CardTitle>
-          </CardHeader>
-          <CardContent className="h-56">
-            <SalesChart data={data.weekly} />
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base">Monthly sales</CardTitle>
-          </CardHeader>
-          <CardContent className="h-56">
-            <SalesChart data={data.monthly} />
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base">Branch-wise sales</CardTitle>
-          </CardHeader>
-          <CardContent className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.branchSales}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="name" fontSize={10} tickLine={false} interval={0} height={50} angle={-20} textAnchor="end" />
-                <YAxis fontSize={11} tickLine={false} width={44} />
-                <Tooltip formatter={(value: number) => formatMoney(value)} />
-                <Bar dataKey="sales" fill="var(--primary)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="rounded-2xl shadow-card">
+              <CardHeader>
+                <CardTitle className="text-base">Daily sales</CardTitle>
+              </CardHeader>
+              <CardContent className="h-56">
+                <SalesChart data={data.daily} />
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl shadow-card">
+              <CardHeader>
+                <CardTitle className="text-base">Weekly sales</CardTitle>
+              </CardHeader>
+              <CardContent className="h-56">
+                <SalesChart data={data.weekly} />
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl shadow-card">
+              <CardHeader>
+                <CardTitle className="text-base">Monthly sales</CardTitle>
+              </CardHeader>
+              <CardContent className="h-56">
+                <SalesChart data={data.monthly} />
+              </CardContent>
+            </Card>
+            {access.isSuperAdmin ? <Card className="rounded-2xl shadow-card">
+              <CardHeader>
+                <CardTitle className="text-base">Branch-wise sales</CardTitle>
+              </CardHeader>
+              <CardContent className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.branchSales}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} interval={0} height={50} angle={-20} textAnchor="end" />
+                    <YAxis fontSize={11} tickLine={false} width={44} />
+                    <Tooltip formatter={(value: number) => formatMoney(value)} />
+                    <Bar dataKey="sales" fill="var(--primary)" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card> :
+              <Card className="rounded-2xl shadow-card">
+                <CardHeader>
+                  <CardTitle className="text-base">Top customers</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {data.topCustomers.map((customer) => (
+                    <div
+                      key={customer.name}
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border p-3 text-sm"
+                    >
+                      <span className="truncate">{customer.name}</span>
+                      <span className="font-bold">{formatMoney(customer.spend)}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            }
+          </div>
 
-      <Card className="rounded-2xl shadow-card">
-        <CardHeader>
-          <CardTitle className="text-base">Branch performance — daily, weekly &amp; monthly</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Branch</TableHead>
-                <TableHead className="text-right">Today</TableHead>
-                <TableHead className="text-right">This week</TableHead>
-                <TableHead className="text-right">This month</TableHead>
-                <TableHead className="text-right">Range total</TableHead>
-                <TableHead className="text-right">Transactions</TableHead>
-                <TableHead className="text-right">Paid glasses</TableHead>
-                <TableHead className="text-right">Free glasses</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.branchPerformance.map((branch) => (
-                <TableRow key={branch.id}>
-                  <TableCell className="font-medium">{branch.name}</TableCell>
-                  <TableCell className="text-right">{formatMoney(branch.today)}</TableCell>
-                  <TableCell className="text-right">{formatMoney(branch.week)}</TableCell>
-                  <TableCell className="text-right">{formatMoney(branch.month)}</TableCell>
-                  <TableCell className="text-right font-bold">{formatMoney(branch.rangeTotal)}</TableCell>
-                  <TableCell className="text-right">{branch.transactions}</TableCell>
-                  <TableCell className="text-right">{branch.paidGlasses ?? 0}</TableCell>
-                  <TableCell className="text-right">{branch.freeGlasses}</TableCell>
-                </TableRow>
-              ))}
-              {data.branchPerformance.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                    No branch data in this range.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+          <Card className="rounded-2xl shadow-card">
+            <CardHeader>
+              <CardTitle className="text-base">Branch performance — daily, weekly &amp; monthly</CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Branch</TableHead>
+                    <TableHead className="text-right">Today</TableHead>
+                    <TableHead className="text-right">This week</TableHead>
+                    <TableHead className="text-right">This month</TableHead>
+                    <TableHead className="text-right">Range total</TableHead>
+                    <TableHead className="text-right">Transactions</TableHead>
+                    <TableHead className="text-right">Paid glasses</TableHead>
+                    <TableHead className="text-right">Free glasses</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.branchPerformance.map((branch) => (
+                    <TableRow key={branch.id}>
+                      <TableCell className="font-medium">{branch.name}</TableCell>
+                      <TableCell className="text-right">{formatMoney(branch.today)}</TableCell>
+                      <TableCell className="text-right">{formatMoney(branch.week)}</TableCell>
+                      <TableCell className="text-right">{formatMoney(branch.month)}</TableCell>
+                      <TableCell className="text-right font-bold">{formatMoney(branch.rangeTotal)}</TableCell>
+                      <TableCell className="text-right">{branch.transactions}</TableCell>
+                      <TableCell className="text-right">{branch.paidGlasses ?? 0}</TableCell>
+                      <TableCell className="text-right">{branch.freeGlasses}</TableCell>
+                    </TableRow>
+                  ))}
+                  {data.branchPerformance.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                        No branch data in this range.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="rounded-2xl shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base">Top customers</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {data.topCustomers.map((customer) => (
-              <div
-                key={customer.name}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border p-3 text-sm"
-              >
-                <span className="truncate">{customer.name}</span>
-                <span className="font-bold">{formatMoney(customer.spend)}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base">Top branches</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {data.branchSales.slice(0, 6).map((branch) => (
-              <div
-                key={branch.name}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border p-3 text-sm"
-              >
-                <span className="truncate">{branch.name}</span>
-                <span className="font-bold">{formatMoney(branch.sales)}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-      </>
+          {access.isSuperAdmin && <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="rounded-2xl shadow-card">
+              <CardHeader>
+                <CardTitle className="text-base">Top customers</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {data.topCustomers.map((customer) => (
+                  <div
+                    key={customer.name}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border p-3 text-sm"
+                  >
+                    <span className="truncate">{customer.name}</span>
+                    <span className="font-bold">{formatMoney(customer.spend)}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl shadow-card">
+              <CardHeader>
+                <CardTitle className="text-base">Top branches</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {data.branchSales.slice(0, 6).map((branch) => (
+                  <div
+                    key={branch.name}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border p-3 text-sm"
+                  >
+                    <span className="truncate">{branch.name}</span>
+                    <span className="font-bold">{formatMoney(branch.sales)}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+          </div>}
+        </>
       )}
     </div>
 

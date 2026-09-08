@@ -179,7 +179,7 @@ export function CustomerProfile({
       const inRange =
         range === "custom"
           ? rowTime >= new Date(`${customFrom}T00:00:00`).getTime() &&
-            rowTime <= new Date(`${customTo}T23:59:59.999`).getTime()
+          rowTime <= new Date(`${customTo}T23:59:59.999`).getTime()
           : range === "all"
             ? true
             : rowTime >= cutoff;
@@ -252,11 +252,10 @@ export function CustomerProfile({
                 key={item.key}
                 onClick={() => setRange(item.key)}
                 aria-pressed={range === item.key}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-                  range === item.key
+                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${range === item.key
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-muted-foreground"
-                }`}
+                  }`}
               >
                 {item.label}
               </button>
@@ -537,8 +536,8 @@ export function CustomerProfile({
   const selectedProduct = loyaltyProducts.find((product) => product.id === selectedProductForHistory) ?? null;
   const selectedProductPurchases = selectedProduct
     ? (history.data ?? []).filter((row) =>
-        row.transaction_items.some((item) => item.product_name === selectedProduct.name),
-      )
+      row.transaction_items.some((item) => item.product_name === selectedProduct.name),
+    )
     : [];
   const selectedRuleTimeline = Array.from(
     selectedProductPurchases
@@ -604,14 +603,23 @@ export function CustomerProfile({
                   height={512}
                   className={`h-12 w-12 shrink-0 rounded-xl object-cover ${categoryArt(product.category_name).tint}`}
                 />
-                <p className="truncate font-bold">{product.name}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-bold" title={product.name}>
+                    {product.name}
+                  </p>
+                  <p
+                    className="mt-0.5 truncate text-xs text-muted-foreground"
+                    title={product.category_name ?? "Uncategorised"}
+                  >
+                    {product.category_name?.trim() || "Uncategorised"}
+                  </p>
+                </div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
-                      ready ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-                    }`}
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${ready ? "" : "bg-secondary text-muted-foreground"
+                      }`}
                   >
-                    {ready ? "Reward ready" : `${done} / ${rule.target}`}
+                    {ready ? "" : `${done} / ${rule.target}`}
                   </span>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden />
                 </div>
@@ -621,11 +629,10 @@ export function CustomerProfile({
                 {Array.from({ length: rule.target }).map((_, index) => (
                   <span
                     key={index}
-                    className={`h-6 w-6 rounded-full border text-center text-[10px] leading-6 ${
-                      index < done
+                    className={`h-6 w-6 rounded-full border text-center text-[10px] leading-6 ${index < done
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border text-muted-foreground"
-                    }`}
+                      }`}
                   >
                     {index + 1}
                   </span>

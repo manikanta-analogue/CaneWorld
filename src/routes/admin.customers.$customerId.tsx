@@ -494,8 +494,10 @@ function CustomerDetailPage() {
                       </p>
                     </div>
                     <Badge variant={rewardReady ? "default" : "secondary"}>
-                      {rewardReady ? `${rewardQty} free ready` : `${paidInCycle} of ${target || "–"} paid`}
+                      {rewardReady ? `${rewardQty} free ready` : ``} 
                     </Badge>
+
+             
                   </div>
                     );
                   })()}
