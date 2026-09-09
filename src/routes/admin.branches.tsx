@@ -54,7 +54,10 @@ export const Route = createFileRoute("/admin/branches")({
 const branchSchema = z.object({
   name: z.string().trim().min(2, "Branch name is required").max(80),
   owner_name: z.string().trim().min(2, "Owner name is required").max(80),
-  mobile: z.string().trim().regex(/^[0-9]{10}$/, "Enter a valid 10-digit mobile"),
+  mobile: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{10}$/, "Enter a valid 10-digit mobile"),
   address: z.string().trim().min(4, "Address is required").max(200),
   map_location: z
     .string()
@@ -74,7 +77,11 @@ async function fetchBranches() {
   return (data ?? []) as unknown as Branch[];
 }
 
-function directionsUrl(branch: { map_location?: string | null; address?: string | null; name: string }) {
+function directionsUrl(branch: {
+  map_location?: string | null;
+  address?: string | null;
+  name: string;
+}) {
   const raw = (branch.map_location ?? "").trim();
   if (/^https?:\/\//i.test(raw)) return raw;
   const query = raw || branch.address || branch.name;
@@ -225,7 +232,6 @@ function BranchesPage() {
     }
   };
 
-
   const [newLogin, setNewLogin] = useState({ email: "", password: "" });
   const [editLoginEmail, setEditLoginEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
@@ -246,7 +252,8 @@ function BranchesPage() {
       if (
         branches.some(
           (branch) =>
-            branch.id !== editing?.id && normalizedName(branch.name) === normalizedName(parsed.name),
+            branch.id !== editing?.id &&
+            normalizedName(branch.name) === normalizedName(parsed.name),
         )
       ) {
         throw new Error("This branch name already exists");
@@ -258,8 +265,10 @@ function BranchesPage() {
             throw new Error("Password must be at least 8 characters");
           }
         } else if (loginEmail || editPassword) {
-          if (!/^\S+@\S+\.\S+$/.test(loginEmail)) throw new Error("Enter a valid branch login email");
-          if (editPassword.length < 8) throw new Error("Branch password must be at least 8 characters");
+          if (!/^\S+@\S+\.\S+$/.test(loginEmail))
+            throw new Error("Enter a valid branch login email");
+          if (editPassword.length < 8)
+            throw new Error("Branch password must be at least 8 characters");
         }
         const { error } = await supabase.from("branches").update(parsed).eq("id", editing.id);
         if (error) throw branchError(error);
@@ -295,14 +304,28 @@ function BranchesPage() {
         .single();
       if (error) throw branchError(error);
       if (email && password) {
-        await createBranchUser({
-          data: {
-            branchId: created.id,
-            email,
-            password,
-            fullName: `${parsed.name} login`,
-          },
-        });
+        try {
+          await createBranchUser({
+            data: {
+              branchId: created.id,
+              email,
+              password,
+              fullName: `${parsed.name} login`,
+            },
+          });
+        } catch (loginError) {
+          // Branch + Auth cannot share a database transaction. Remove the new
+          // branch when login provisioning fails so retrying does not produce
+          // a misleading duplicate-name error.
+          const { error: rollbackError } = await supabase
+            .from("branches")
+            .delete()
+            .eq("id", created.id);
+          if (rollbackError) {
+            console.error("Could not roll back branch after login creation failed", rollbackError);
+          }
+          throw loginError;
+        }
       }
     },
     onSuccess: () => {
@@ -327,9 +350,6 @@ function BranchesPage() {
           : (error as Error).message,
       ),
   });
-
-
-
 
   const toggleStatus = useMutation({
     mutationFn: async (branch: Branch) => {
@@ -360,7 +380,10 @@ function BranchesPage() {
         typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
           ? crypto.randomUUID().replace(/-/g, "")
           : `${Date.now()}${Math.random().toString(16).slice(2)}${Math.random().toString(16).slice(2)}`;
-      const { error } = await supabase.from("branches").update({ qr_token: token }).eq("id", branch.id);
+      const { error } = await supabase
+        .from("branches")
+        .update({ qr_token: token })
+        .eq("id", branch.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -387,16 +410,12 @@ function BranchesPage() {
     setOpen(true);
   };
 
-
-
   return (
     <div className="space-y-5">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-extrabold tracking-tight">Branches</h1>
-          <p className="text-sm text-muted-foreground">
-            Every branch gets one unique QR code
-          </p>
+          <p className="text-sm text-muted-foreground">Every branch gets one unique QR code</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           <Button
@@ -437,7 +456,11 @@ function BranchesPage() {
                   <div className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border p-3">
                     <div className="flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-xl bg-muted">
                       {formPreview ? (
-                        <img src={formPreview} alt="Branch" className="h-full w-full object-cover" />
+                        <img
+                          src={formPreview}
+                          alt="Branch"
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <Store className="h-7 w-7 text-muted-foreground" />
                       )}
@@ -547,8 +570,8 @@ function BranchesPage() {
                     <div>
                       <p className="text-sm font-semibold">Branch login access</p>
                       <p className="text-xs text-muted-foreground">
-                        Staff sign in at /auth and see only this branch&apos;s data. You can add this
-                        later from the branch card.
+                        Staff sign in at /auth and see only this branch&apos;s data. You can add
+                        this later from the branch card.
                       </p>
                     </div>
                     <div className="space-y-2">
@@ -577,11 +600,19 @@ function BranchesPage() {
                         <button
                           type="button"
                           tabIndex={-1}
-                          aria-label={showNewLoginPassword ? "Hide branch login password" : "Show branch login password"}
+                          aria-label={
+                            showNewLoginPassword
+                              ? "Hide branch login password"
+                              : "Show branch login password"
+                          }
                           onClick={() => setShowNewLoginPassword((value) => !value)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
-                          {showNewLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          {showNewLoginPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -615,7 +646,11 @@ function BranchesPage() {
                           id="edit-login-password"
                           type={showLoginPassword ? "text" : "password"}
                           autoComplete="new-password"
-                          placeholder={editingLogin ? "Leave blank to keep current password" : "At least 8 characters"}
+                          placeholder={
+                            editingLogin
+                              ? "Leave blank to keep current password"
+                              : "At least 8 characters"
+                          }
                           value={editPassword}
                           onChange={(e) => setEditPassword(e.target.value)}
                           className="pr-10"
@@ -623,18 +658,28 @@ function BranchesPage() {
                         <button
                           type="button"
                           tabIndex={-1}
-                          aria-label={showLoginPassword ? "Hide branch password" : "Show branch password"}
+                          aria-label={
+                            showLoginPassword ? "Hide branch password" : "Show branch password"
+                          }
                           onClick={() => setShowLoginPassword((value) => !value)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
-                          {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          {showLoginPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
                         </button>
                       </div>
                     </div>
                   </div>
                 )}
 
-                <Button className="h-12 w-full" onClick={() => save.mutate()} disabled={save.isPending}>
+                <Button
+                  className="h-12 w-full"
+                  onClick={() => save.mutate()}
+                  disabled={save.isPending}
+                >
                   {save.isPending ? "Saving…" : "Save branch"}
                 </Button>
               </div>
@@ -644,35 +689,35 @@ function BranchesPage() {
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-3 shadow-card">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="relative w-full md:max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search branches..."
-                className="pl-9"
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {(["all", "active", "disabled"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setStatusFilter(option)}
-                  className={[
-                    "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                    statusFilter === option
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background text-muted-foreground hover:text-foreground",
-                  ].join(" ")}
-                >
-                  {option === "all" ? "All" : option === "active" ? "Active" : "Inactive"}
-                </button>
-              ))}
-            </div>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="relative w-full md:max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search branches..."
+              className="pl-9"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(["all", "active", "disabled"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setStatusFilter(option)}
+                className={[
+                  "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                  statusFilter === option
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:text-foreground",
+                ].join(" ")}
+              >
+                {option === "all" ? "All" : option === "active" ? "Active" : "Inactive"}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filteredBranches.map((branch) => (
@@ -695,7 +740,9 @@ function BranchesPage() {
                   <p className="truncate text-xs text-muted-foreground">
                     {branch.owner_name} · {branch.mobile}
                   </p>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{branch.address}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                    {branch.address}
+                  </p>
                   {(branch.map_location || branch.address) && (
                     <a
                       href={directionsUrl(branch)}
@@ -751,7 +798,6 @@ function BranchesPage() {
           </Card>
         ))}
       </div>
-
     </div>
   );
 }

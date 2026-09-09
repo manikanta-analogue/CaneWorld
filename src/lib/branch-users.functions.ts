@@ -50,10 +50,9 @@ export const createSuperAdminUser = createServerFn({ method: "POST" })
 
     if (profileError) throw profileError;
 
-    const { error: roleError } = await supabaseAdmin.from("user_roles").upsert(
-      { user_id: userId, role: "super_admin" },
-      { onConflict: "user_id,role" },
-    );
+    const { error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: userId, role: "super_admin" }, { onConflict: "user_id,role" });
 
     if (roleError) throw roleError;
 
@@ -97,13 +96,67 @@ export const createBranchUser = createServerFn({ method: "POST" })
     if (branchError) throw branchError;
     if (!branch) throw new Error("Branch not found");
 
+    const email = data.email.trim().toLowerCase();
+    const fullName = data.fullName?.trim() || `${branch.name} login`;
+
+    // Deleting a branch intentionally keeps its auth user, while the profile's
+    // branch_id becomes null. Reattach that orphaned login instead of failing
+    // with Supabase's "already registered" error.
+    const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, branch_id")
+      .ilike("email", email)
+      .maybeSingle();
+    if (existingProfileError) throw existingProfileError;
+
+    if (existingProfile) {
+      if (existingProfile.branch_id && existingProfile.branch_id !== data.branchId) {
+        throw new Error("This email is already assigned to another branch");
+      }
+
+      const { data: roles, error: rolesError } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", existingProfile.id);
+      if (rolesError) throw rolesError;
+      if (roles?.some((item) => item.role === "super_admin")) {
+        throw new Error("This email belongs to a super admin and cannot be used as a branch login");
+      }
+
+      const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+        existingProfile.id,
+        {
+          password: data.password,
+          email_confirm: true,
+          user_metadata: { branch_id: data.branchId, full_name: fullName },
+        },
+      );
+      if (authUpdateError) throw new Error(authUpdateError.message);
+
+      const { error: profileUpdateError } = await supabaseAdmin
+        .from("profiles")
+        .update({ branch_id: data.branchId, email, full_name: fullName })
+        .eq("id", existingProfile.id);
+      if (profileUpdateError) throw profileUpdateError;
+
+      const { error: roleError } = await supabaseAdmin
+        .from("user_roles")
+        .upsert(
+          { user_id: existingProfile.id, role: "branch_user" },
+          { onConflict: "user_id,role" },
+        );
+      if (roleError) throw roleError;
+
+      return { id: existingProfile.id, email, branchId: data.branchId };
+    }
+
     const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-      email: data.email,
+      email,
       password: data.password,
       email_confirm: true,
       user_metadata: {
         branch_id: data.branchId,
-        full_name: data.fullName?.trim() || `${branch.name} login`,
+        full_name: fullName,
       },
     });
     if (error) throw new Error(error.message);
@@ -113,11 +166,11 @@ export const createBranchUser = createServerFn({ method: "POST" })
     // Trigger creates the profile + branch_user role; make sure the branch sticks.
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .update({ branch_id: data.branchId, email: data.email })
+      .update({ branch_id: data.branchId, email, full_name: fullName })
       .eq("id", userId);
     if (profileError) throw profileError;
 
-    return { id: userId, email: data.email, branchId: data.branchId };
+    return { id: userId, email, branchId: data.branchId };
   });
 
 /** Sets a new password for an existing branch login (super admin only). */
