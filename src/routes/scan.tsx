@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ClientOnly } from "@tanstack/react-router";
 import { QrScanner } from "@/components/QrScanner";
-
+//
 export const Route = createFileRoute("/scan")({
   head: () => ({
     meta: [
